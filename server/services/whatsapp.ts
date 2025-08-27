@@ -195,8 +195,25 @@ export class WhatsAppService extends EventEmitter {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
           } else if (statusCode === DisconnectReason.restartRequired) {
-            console.log('Restart required for pairing - waiting for reconnection...');
-            // Don't emit success yet, wait for the restart to complete
+            console.log('Restart required for pairing - restarting connection now...');
+            
+            // If we have user info from before the restart, the pairing was successful
+            if (sock.authState?.creds?.registered) {
+              console.log('Pairing successful! Starting fresh connection...');
+              
+              // Clean up current session
+              this.cleanupSession(sessionId);
+              
+              // Start a new authenticated session
+              setTimeout(async () => {
+                try {
+                  await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
+                } catch (error) {
+                  console.error('Error starting authenticated session:', error);
+                  this.emit('session_failed', sessionId, 'Failed to establish authenticated connection');
+                }
+              }, 2000);
+            }
           } else {
             console.log('Connection closed unexpectedly');
             this.emit('session_failed', sessionId, 'Connection failed');
@@ -354,6 +371,43 @@ Your bot can now use this session to send and receive messages. The session is s
       console.error('Error sending session confirmation:', error);
       // Don't throw error - this is optional functionality
     }
+  }
+
+  async startAuthenticatedSession(sessionId: string, phoneNumber: string, callback: (data: any) => void) {
+    console.log('Starting authenticated session for:', sessionId);
+    
+    const sessionPath = path.join(this.sessionsDir, sessionId);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      generateHighQualityLinkPreview: true,
+    });
+
+    this.activeSessions.set(sessionId, sock);
+
+    sock.ev.on('connection.update', (update: any) => {
+      const { connection, lastDisconnect } = update;
+      console.log('Authenticated session update:', { connection, hasUser: !!sock.user });
+
+      if (connection === 'open' && sock.user) {
+        console.log('✅ Authenticated session established successfully!');
+        console.log('User:', sock.user.name, 'JID:', sock.user.id);
+        
+        this.emit('session_connected', sessionId, {
+          jid: sock.user.id,
+          name: sock.user.name,
+          phoneNumber: phoneNumber,
+        });
+        
+        this.sendSessionConfirmation(sock, sessionId);
+      }
+    });
+
+    sock.ev.on('creds.update', saveCreds);
   }
 
   async cleanup() {
