@@ -157,8 +157,13 @@ export class WhatsAppService extends EventEmitter {
         browser: ['Ubuntu', 'Chrome', '22.04.4'],
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        defaultQueryTimeoutMs: 60_000,
-        keepAliveIntervalMs: 30_000
+        defaultQueryTimeoutMs: 120_000,
+        keepAliveIntervalMs: 45_000,
+        connectTimeoutMs: 60_000,
+        qrTimeout: 120_000,
+        retryRequestDelayMs: 2000,
+        maxMsgRetryCount: 3,
+        emitOwnEvents: false
       });
 
       this.activeSessions.set(sessionId, sock);
@@ -208,7 +213,7 @@ export class WhatsAppService extends EventEmitter {
           
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
-            this.emit('session_failed', sessionId, 'Connection logged out');
+            this.emit('session_failed', sessionId, 'Connection logged out - please try again');
           } else if (statusCode === DisconnectReason.restartRequired) {
             console.log('Restart required for pairing - restarting connection now...');
             
@@ -227,11 +232,16 @@ export class WhatsAppService extends EventEmitter {
                   console.error('Error starting authenticated session:', error);
                   this.emit('session_failed', sessionId, 'Failed to establish authenticated connection');
                 }
-              }, 2000);
+              }, 3000);
             }
+          } else if (statusCode === 503) {
+            console.log('WhatsApp server error (503) - this is temporary, you can try again');
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'WhatsApp servers are busy. Please wait a minute and try again.');
           } else {
-            console.log('Connection closed unexpectedly');
-            this.emit('session_failed', sessionId, 'Connection failed');
+            console.log('Connection closed unexpectedly with status:', statusCode);
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Connection failed. Please try again in a few moments.');
           }
         }
       });
@@ -245,8 +255,8 @@ export class WhatsAppService extends EventEmitter {
         try {
           console.log('Requesting pairing code for phone:', cleanPhone);
           
-          // Wait a moment for connection to stabilize
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Wait longer for connection to stabilize
+          await new Promise(resolve => setTimeout(resolve, 3000));
           
           const code = await sock.requestPairingCode(cleanPhone);
           pairingCodeRequested = true;
@@ -272,6 +282,30 @@ export class WhatsAppService extends EventEmitter {
           console.log(`5. Enter this code: ${code}`);
           console.log('='.repeat(50));
           
+          // Set up a listener for successful authentication
+          const authSuccessHandler = () => {
+            if (sock.authState?.creds?.registered) {
+              console.log('✅ Authentication successful! User is now registered.');
+              
+              // Wait a bit for connection to stabilize, then attempt to connect
+              setTimeout(async () => {
+                try {
+                  console.log('Starting authenticated connection after successful pairing...');
+                  
+                  // Close current connection and start fresh authenticated session
+                  this.cleanupSession(sessionId);
+                  await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
+                } catch (error) {
+                  console.error('Error starting authenticated session:', error);
+                  this.emit('session_failed', sessionId, 'Failed to establish connection after pairing');
+                }
+              }, 3000);
+            }
+          };
+          
+          // Monitor for authentication changes
+          sock.ev.on('creds.update', authSuccessHandler);
+          
         } catch (error) {
           console.error('Error generating pairing code:', error);
           throw error;
@@ -291,8 +325,8 @@ export class WhatsAppService extends EventEmitter {
         }
       };
 
-      // Start checking after initial connection
-      setTimeout(checkAndRequestCode, 2000);
+      // Start checking after initial connection with longer delay
+      setTimeout(checkAndRequestCode, 5000);
 
       sock.ev.on('creds.update', saveCreds);
 
