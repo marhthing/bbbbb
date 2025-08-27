@@ -154,7 +154,7 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Ubuntu', 'Chrome', '22.04.4'],
+        browser: ['Mac OS', 'Chrome', '121.0.6167.159'], // Critical for pairing code to work
         markOnlineOnConnect: false,
         syncFullHistory: false,
         defaultQueryTimeoutMs: 120_000,
