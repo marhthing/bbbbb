@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface StepIndicatorProps {
   currentStep: number;
@@ -37,6 +40,32 @@ interface PairingMethodProps {
 }
 
 export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }: PairingMethodProps) {
+  const { toast } = useToast();
+
+  const createSessionMutation = useMutation({
+    mutationFn: async (pairingMethod: "qr" | "code") => {
+      const response = await apiRequest("POST", "/api/sessions", {
+        id: sessionId,
+        pairingMethod,
+      });
+      return response.json();
+    },
+    onSuccess: (data, pairingMethod) => {
+      onMethodSelect(pairingMethod);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create session",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleMethodSelect = (method: "qr" | "code") => {
+    createSessionMutation.mutate(method);
+  };
+
   return (
     <Card className="mb-6" data-testid="pairing-method-card">
       <CardContent className="p-6">
@@ -56,7 +85,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
           <div className="grid md:grid-cols-2 gap-4">
             <Card
               className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => onMethodSelect("qr")}
+              onClick={() => handleMethodSelect("qr")}
               data-testid="card-qr-method"
             >
               <CardContent className="p-4">
@@ -77,7 +106,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
 
             <Card
               className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => onMethodSelect("code")}
+              onClick={() => handleMethodSelect("code")}
               data-testid="card-code-method"
             >
               <CardContent className="p-4">
@@ -102,6 +131,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
               variant="secondary"
               onClick={onBack}
               className="flex-1"
+              disabled={createSessionMutation.isPending}
               data-testid="button-back"
             >
               <i className="fas fa-arrow-left mr-2"></i>

@@ -50,7 +50,7 @@ export class WhatsAppService extends EventEmitter {
         }
 
         if (connection === 'close') {
-          const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+          const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
           
           if (shouldReconnect) {
             console.log('Connection closed, reconnecting...');
@@ -116,7 +116,7 @@ export class WhatsAppService extends EventEmitter {
         const { connection, lastDisconnect } = update;
 
         if (connection === 'close') {
-          const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+          const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
           
           if (!shouldReconnect) {
             this.cleanupSession(sessionId);
@@ -194,7 +194,8 @@ export class WhatsAppService extends EventEmitter {
 
   async cleanup() {
     // Cleanup all active sessions
-    for (const [sessionId] of this.activeSessions) {
+    const sessionIds = Array.from(this.activeSessions.keys());
+    for (const sessionId of sessionIds) {
       this.cleanupSession(sessionId);
     }
   }
