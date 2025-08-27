@@ -190,15 +190,26 @@ export class WhatsAppService extends EventEmitter {
 
       // Clean phone number (remove spaces, dashes, etc.) and ensure proper format
       let cleanPhone = phoneNumber.replace(/\D/g, '');
-      // Remove leading 0 if present and country code isn't included
-      if (cleanPhone.startsWith('0') && cleanPhone.length > 10) {
-        cleanPhone = cleanPhone.substring(1);
-      }
-      // Ensure UK numbers have proper country code
-      if (cleanPhone.startsWith('7') && cleanPhone.length === 11) {
+      
+      // Handle different phone number formats
+      if (cleanPhone.startsWith('00')) {
+        // Remove double zero prefix (international format)
+        cleanPhone = cleanPhone.substring(2);
+      } else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
+        // UK format starting with 0 (like 07350152214)
+        cleanPhone = '44' + cleanPhone.substring(1);
+      } else if (cleanPhone.startsWith('7') && cleanPhone.length === 10) {
+        // UK mobile without country code (like 7350152214)
         cleanPhone = '44' + cleanPhone;
+      } else if (cleanPhone.startsWith('44') && cleanPhone.length === 13) {
+        // Already in correct UK international format
+        // Do nothing
+      } else if (cleanPhone.startsWith('1') && cleanPhone.length === 11) {
+        // US/Canada format
+        // Do nothing
       }
-      console.log('Cleaned phone number:', cleanPhone);
+      
+      console.log('Original phone:', phoneNumber, '-> Cleaned phone:', cleanPhone);
       
       const sessionPath = path.join(this.sessionsDir, sessionId);
       
@@ -405,10 +416,26 @@ export class WhatsAppService extends EventEmitter {
           // Monitor for authentication changes
           sock.ev.on('creds.update', authSuccessHandler);
           
+          // Set a timeout for pairing code validation
+          setTimeout(() => {
+            if (!sock.authState?.creds?.registered && !sock.user) {
+              console.log('Pairing code timeout - no successful authentication within 2 minutes');
+              this.emit('session_failed', sessionId, 'Pairing code expired or was not entered correctly. Please try again.');
+              this.cleanupSession(sessionId);
+            }
+          }, 120000); // 2 minutes timeout
+          
         } catch (error) {
-          console.error('Error generating pairing code (retrying automatically):', error.message);
-          // Don't throw immediately - let the retry logic handle it
-          this.emit('session_failed', sessionId, 'Failed to generate pairing code. Retrying...');
+          console.error('Error generating pairing code:', error.message);
+          
+          // Check for specific error messages
+          if (error.message.includes('Invalid phone number')) {
+            this.emit('session_failed', sessionId, 'Invalid phone number format. Please include country code (e.g., +44 for UK).');
+          } else if (error.message.includes('rate limit')) {
+            this.emit('session_failed', sessionId, 'Too many requests. Please wait a few minutes before trying again.');
+          } else {
+            this.emit('session_failed', sessionId, 'Failed to generate pairing code. Please try again.');
+          }
         }
       };
 
@@ -483,15 +510,27 @@ export class WhatsAppService extends EventEmitter {
         throw new Error('No active session found');
       }
 
-      // The pairing code validation happens automatically through Baileys
-      // We just need to wait for the connection update
+      console.log('User entered pairing code:', code, 'for session:', sessionId);
+      
+      // The pairing code validation happens automatically when user enters it in WhatsApp
+      // This method is mainly for UI feedback
       callback({
         type: 'pairing_code_submitted',
         sessionId,
+        code,
         timestamp: new Date().toISOString(),
       });
 
-      return { success: true, message: 'Pairing code submitted' };
+      // Wait a bit to see if connection succeeds
+      setTimeout(() => {
+        if (sock.authState?.creds?.registered) {
+          console.log('Pairing appears successful, user is registered');
+        } else {
+          console.log('Waiting for pairing confirmation from WhatsApp...');
+        }
+      }, 2000);
+
+      return { success: true, message: 'Waiting for WhatsApp confirmation...' };
     } catch (error) {
       console.error('Error submitting pairing code:', error);
       this.emit('session_failed', sessionId, error instanceof Error ? error.message : 'Unknown error');

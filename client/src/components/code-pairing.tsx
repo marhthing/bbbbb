@@ -183,11 +183,19 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
                   <div className="text-3xl font-mono font-bold text-green-700 tracking-wider">
                     {generatedCode || "Loading..."}
                   </div>
-                  <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp</p>
+                  <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp app</p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Go to WhatsApp Settings → Linked Devices → Link a Device → Enter code manually
-                </p>
+                <div className="text-xs text-muted-foreground mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="font-semibold text-amber-800 mb-2">Important Instructions:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-amber-700">
+                    <li>Open WhatsApp on your phone</li>
+                    <li>Go to Settings → Linked Devices</li>
+                    <li>Tap "Link a Device"</li>
+                    <li>Choose "Link with phone number instead"</li>
+                    <li>Enter the code exactly as shown above</li>
+                    <li>DO NOT click "Connect WhatsApp" until you see confirmation</li>
+                  </ol>
+                </div>
               </div>
 
               <Button
