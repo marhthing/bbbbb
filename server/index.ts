@@ -3,8 +3,20 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Performance optimizations for high concurrency
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// Enable trust proxy for better performance behind load balancers
+app.set('trust proxy', true);
+
+// Optimize keep-alive and connection handling
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=5, max=100');
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -65,7 +77,16 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
+    backlog: 511, // Increase connection backlog for high concurrency
   }, () => {
-    log(`serving on port ${port}`);
+    log(`serving on port ${port} (optimized for 100+ concurrent users)`);
+  });
+
+  // Graceful shutdown handling
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
   });
 })();

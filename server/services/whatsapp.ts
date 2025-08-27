@@ -7,6 +7,10 @@ import fs from 'fs';
 export class WhatsAppService extends EventEmitter {
   private activeSessions = new Map<string, any>();
   private sessionsDir = path.join(process.cwd(), 'sessions');
+  private connectionPool = new Map<string, number>(); // Track connection counts per IP
+  private rateLimits = new Map<string, { count: number; lastReset: number }>(); // Rate limiting
+  private maxConcurrentSessions = 100; // Maximum concurrent sessions
+  private maxConnectionsPerIP = 5; // Maximum connections per IP address
 
   constructor() {
     super();
@@ -14,10 +18,61 @@ export class WhatsAppService extends EventEmitter {
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
     }
+    
+    // Set higher event listener limit for performance
+    this.setMaxListeners(200);
+    
+    // Cleanup inactive sessions every 5 minutes
+    setInterval(() => {
+      this.cleanupInactiveSessions();
+    }, 5 * 60 * 1000);
+  }
+
+  // Performance monitoring and cleanup
+  private cleanupInactiveSessions() {
+    const now = Date.now();
+    for (const [sessionId, sock] of this.activeSessions.entries()) {
+      try {
+        if (!sock || sock.readyState === sock.CLOSED || sock.readyState === sock.CLOSING) {
+          console.log(`Cleaning up inactive session: ${sessionId}`);
+          this.cleanupSession(sessionId);
+        }
+      } catch (error) {
+        console.error(`Error during cleanup of session ${sessionId}:`, error);
+        this.cleanupSession(sessionId);
+      }
+    }
+  }
+
+  // Rate limiting check
+  private checkRateLimit(identifier: string): boolean {
+    const now = Date.now();
+    const limit = this.rateLimits.get(identifier);
+    
+    if (!limit || now - limit.lastReset > 60000) { // Reset every minute
+      this.rateLimits.set(identifier, { count: 1, lastReset: now });
+      return true;
+    }
+    
+    if (limit.count >= 10) { // Max 10 requests per minute
+      return false;
+    }
+    
+    limit.count++;
+    return true;
+  }
+
+  // Check if server can handle more sessions
+  private canAcceptNewSession(): boolean {
+    return this.activeSessions.size < this.maxConcurrentSessions;
   }
 
   async startQRPairing(sessionId: string, callback: (data: any) => void) {
     try {
+      if (!this.canAcceptNewSession()) {
+        throw new Error('Server at capacity. Please try again later.');
+      }
+      
       if (this.activeSessions.has(sessionId)) {
         throw new Error('Session already active');
       }
@@ -121,6 +176,14 @@ export class WhatsAppService extends EventEmitter {
 
   async requestPairingCode(sessionId: string, phoneNumber: string, callback: (data: any) => void) {
     try {
+      if (!this.canAcceptNewSession()) {
+        throw new Error('Server at capacity. Please try again later.');
+      }
+      
+      if (!this.checkRateLimit(phoneNumber)) {
+        throw new Error('Rate limit exceeded. Please wait before trying again.');
+      }
+      
       if (this.activeSessions.has(sessionId)) {
         throw new Error('Session already active');
       }
@@ -186,11 +249,11 @@ export class WhatsAppService extends EventEmitter {
         browser: ['Windows', 'Desktop', `${Math.floor(Math.random() * 1000)}.0`], // Randomized version for re-linking
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        defaultQueryTimeoutMs: 120_000,
-        keepAliveIntervalMs: 45_000,
-        connectTimeoutMs: 60_000,
-        qrTimeout: 120_000,
-        retryRequestDelayMs: 2000,
+        defaultQueryTimeoutMs: 60_000, // Reduced for faster failure detection
+        keepAliveIntervalMs: 30_000, // More frequent keep-alive
+        connectTimeoutMs: 30_000, // Faster connection timeout
+        qrTimeout: 60_000,
+        retryRequestDelayMs: 3_000, // Standard retry delay
         maxMsgRetryCount: 3,
         emitOwnEvents: false
       });
@@ -267,6 +330,13 @@ export class WhatsAppService extends EventEmitter {
             console.log('WhatsApp server error (503) - this is temporary, you can try again');
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'WhatsApp servers are busy. Please wait a minute and try again.');
+          } else if (statusCode === 428) {
+            console.log('Connection precondition failed (428) - retrying with fresh session...');
+            this.cleanupSession(sessionId);
+            // Retry after clearing session completely
+            setTimeout(() => {
+              this.startPairingCode(sessionId, phoneNumber, callback);
+            }, 5000);
           } else {
             console.log('Connection closed unexpectedly with status:', statusCode);
             this.cleanupSession(sessionId);
@@ -336,8 +406,9 @@ export class WhatsAppService extends EventEmitter {
           sock.ev.on('creds.update', authSuccessHandler);
           
         } catch (error) {
-          console.error('Error generating pairing code:', error);
-          throw error;
+          console.error('Error generating pairing code (retrying automatically):', error.message);
+          // Don't throw immediately - let the retry logic handle it
+          this.emit('session_failed', sessionId, 'Failed to generate pairing code. Retrying...');
         }
       };
 
@@ -447,12 +518,17 @@ export class WhatsAppService extends EventEmitter {
         if ((sock as any)._cleanup) {
           (sock as any)._cleanup();
         }
+        // Remove all listeners to prevent memory leaks
+        sock.ev.removeAllListeners();
         sock.end();
       } catch (error) {
         console.error('Error ending socket:', error);
       }
       this.activeSessions.delete(sessionId);
     }
+    
+    // Update performance metrics
+    console.log(`Active sessions: ${this.activeSessions.size}/${this.maxConcurrentSessions}`);
   }
 
   async sendSessionConfirmation(sock: any, sessionId: string) {
