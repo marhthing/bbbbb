@@ -53,12 +53,23 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
     onSuccess: (data, pairingMethod) => {
       onMethodSelect(pairingMethod);
     },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create session",
-        variant: "destructive",
-      });
+    onError: (error: any) => {
+      const errorMessage = error?.message || "Failed to create session";
+      
+      // Show specific message for active sessions
+      if (errorMessage.includes("already active and connected")) {
+        toast({
+          title: "Session Already Active",
+          description: "This session ID is already connected. Please use a different ID or wait for the current session to disconnect.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     },
   });
 

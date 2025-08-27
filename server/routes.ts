@@ -76,6 +76,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check session status
+  app.get("/api/sessions/check/:id", async (req, res) => {
+    try {
+      const session = await storage.getSession(req.params.id);
+      if (!session) {
+        return res.json({ exists: false });
+      }
+      res.json({ 
+        exists: true, 
+        status: session.status,
+        isActive: session.status === "connected",
+        pairingMethod: session.pairingMethod,
+        createdAt: session.createdAt
+      });
+    } catch (error) {
+      console.error('Error checking session:', error);
+      res.status(500).json({ message: "Failed to check session" });
+    }
+  });
+
   // Create new session
   app.post("/api/sessions", async (req, res) => {
     try {
@@ -84,7 +104,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if session ID already exists
       const existingSession = await storage.getSession(validatedData.id);
       if (existingSession) {
-        return res.status(409).json({ message: "Session ID already exists" });
+        // If session exists and is connected, don't allow reuse
+        if (existingSession.status === "connected") {
+          return res.status(409).json({ message: "Session ID is already active and connected" });
+        }
+        // If session exists but is pending/failed/disconnected, allow reuse
+        const updatedSession = await storage.updateSession(validatedData.id, {
+          pairingMethod: validatedData.pairingMethod,
+          status: "pending",
+          updatedAt: new Date()
+        });
+        return res.json(updatedSession);
       }
       
       const session = await storage.createSession(validatedData);

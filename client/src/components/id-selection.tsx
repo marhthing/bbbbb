@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -45,6 +46,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
   const [idType, setIdType] = useState<"custom" | "auto">("custom");
   const [customId, setCustomId] = useState("");
   const [generatedId, setGeneratedId] = useState("");
+  const [sessionStatus, setSessionStatus] = useState<any>(null);
   const { toast } = useToast();
 
   const generateIdMutation = useMutation({
@@ -54,6 +56,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
     },
     onSuccess: (data) => {
       setGeneratedId(data.id);
+      setSessionStatus(null);
     },
     onError: (error) => {
       toast({
@@ -64,10 +67,32 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
     },
   });
 
+  const checkSessionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("GET", `/api/sessions/check/${encodeURIComponent(id)}`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setSessionStatus(data);
+    },
+    onError: (error) => {
+      setSessionStatus(null);
+    },
+  });
+
   const handleIdTypeChange = (value: string) => {
     setIdType(value as "custom" | "auto");
+    setSessionStatus(null);
     if (value === "auto" && !generatedId) {
       generateIdMutation.mutate();
+    }
+  };
+
+  const handleCustomIdChange = (value: string) => {
+    setCustomId(value);
+    setSessionStatus(null);
+    if (value.trim().length >= 3) {
+      checkSessionMutation.mutate(value.trim());
     }
   };
 
@@ -123,10 +148,33 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
                     type="text"
                     placeholder="Enter your custom ID (e.g., my-bot-session)"
                     value={customId}
-                    onChange={(e) => setCustomId(e.target.value)}
+                    onChange={(e) => handleCustomIdChange(e.target.value)}
                     className="w-full"
                     data-testid="input-custom-id"
                   />
+                  {sessionStatus && idType === "custom" && (
+                    <div className="mt-2">
+                      {sessionStatus.exists && sessionStatus.isActive ? (
+                        <Alert className="border-red-200 bg-red-50">
+                          <AlertDescription className="text-red-700">
+                            ⚠️ This session ID is already active and connected. Please choose a different ID.
+                          </AlertDescription>
+                        </Alert>
+                      ) : sessionStatus.exists ? (
+                        <Alert className="border-yellow-200 bg-yellow-50">
+                          <AlertDescription className="text-yellow-700">
+                            ℹ️ This session ID exists but is not active (status: {sessionStatus.status}). You can reuse it.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <Alert className="border-green-200 bg-green-50">
+                          <AlertDescription className="text-green-700">
+                            ✅ This session ID is available.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -154,7 +202,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
             <Button
               onClick={handleNext}
               className="w-full"
-              disabled={generateIdMutation.isPending}
+              disabled={generateIdMutation.isPending || checkSessionMutation.isPending || (sessionStatus?.exists && sessionStatus?.isActive)}
               data-testid="button-continue"
             >
               Continue to Pairing Method
