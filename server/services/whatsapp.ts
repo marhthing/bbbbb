@@ -422,6 +422,38 @@ export class WhatsAppService extends EventEmitter {
           }
         }
 
+        // FALLBACK: Generate pairing code after seeing registration attempt
+        if (!pairingCodeGenerated && connection === undefined && isOnline === undefined) {
+          // Wait a bit for the connection to stabilize, then try to generate code
+          setTimeout(async () => {
+            if (!pairingCodeGenerated) {
+              try {
+                console.log('🔄 Attempting pairing code generation (fallback)...');
+                console.log('🔢 Generating pairing code for:', cleanPhone);
+                const code = await sock.requestPairingCode(cleanPhone);
+                console.log('✅ Pairing code generated:', code);
+                
+                pairingCodeGenerated = true;
+                
+                callback({
+                  type: 'pairing_code_ready',
+                  sessionId,
+                  phoneNumber: cleanPhone,
+                  code: code,
+                  timestamp: new Date().toISOString(),
+                });
+
+                console.log('📋 PAIRING CODE:', code);
+                console.log('Enter this code in WhatsApp: Settings → Linked Devices → Link with phone number');
+              } catch (error) {
+                console.error('Failed to generate pairing code (fallback):', error);
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                this.emit('session_failed', sessionId, 'Failed to generate pairing code: ' + errorMsg);
+              }
+            }
+          }, 3000);
+        }
+
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
           console.log('❌ Connection closed. Status:', statusCode);
