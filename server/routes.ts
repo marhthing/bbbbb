@@ -68,7 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate session ID
   app.post("/api/sessions/generate-id", async (req, res) => {
     try {
-      const id = 'wa-session-' + randomUUID().slice(0, 8);
+      const id = 'MATDEV-' + randomUUID().slice(0, 8);
       res.json({ id });
     } catch (error) {
       console.error('Error generating ID:', error);
