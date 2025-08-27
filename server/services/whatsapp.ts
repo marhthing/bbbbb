@@ -186,36 +186,37 @@ export class WhatsAppService extends EventEmitter {
         }
       });
 
-      // Wait for the connection to be in the right state before requesting pairing code
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Connection timeout while waiting for pairing code request'));
-        }, 15000);
-
-        const checkConnection = () => {
-          // Request pairing code when connection is connecting and not yet registered
-          if (sock.ws?.readyState === 1 && !sock.authState.creds.registered) {
-            clearTimeout(timeout);
-            resolve(true);
-          } else {
-            setTimeout(checkConnection, 500);
-          }
-        };
-
-        setTimeout(checkConnection, 1000); // Give it a moment to establish connection
-      });
-
-      console.log('Requesting pairing code for phone:', cleanPhone);
-      // Request pairing code - standard method without custom code
-      const code = await sock.requestPairingCode(cleanPhone);
+      // Wait for connection to be ready and then request pairing code
+      let pairingCodeRequested = false;
       
-      callback({
-        type: 'pairing_code_ready',
-        sessionId,
-        phoneNumber: cleanPhone,
-        code: code,
-        timestamp: new Date().toISOString(),
-      });
+      const requestPairingCodeWhenReady = async () => {
+        if (pairingCodeRequested) return;
+        
+        try {
+          console.log('Requesting pairing code for phone:', cleanPhone);
+          const code = await sock.requestPairingCode(cleanPhone);
+          pairingCodeRequested = true;
+          
+          console.log('Pairing code generated:', code);
+          callback({
+            type: 'pairing_code_ready',
+            sessionId,
+            phoneNumber: cleanPhone,
+            code: code,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error('Error generating pairing code:', error);
+          throw error;
+        }
+      };
+
+      // Try to request pairing code after a short delay
+      setTimeout(async () => {
+        if (!pairingCodeRequested && !sock.authState.creds.registered) {
+          await requestPairingCodeWhenReady();
+        }
+      }, 3000);
 
       sock.ev.on('creds.update', saveCreds);
 
