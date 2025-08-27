@@ -149,6 +149,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Session not found" });
       }
 
+      // Clean up any existing session first
+      whatsappService.cleanupSession(sessionId);
+
       // Always update the pairing method and reset status when switching methods
       await storage.updateSession(sessionId, { 
         pairingMethod: "qr",
@@ -183,6 +186,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!session) {
         return res.status(404).json({ message: "Session not found" });
       }
+
+      // Clean up any existing session first
+      whatsappService.cleanupSession(sessionId);
 
       // Always update the pairing method and reset status when switching methods
       await storage.updateSession(sessionId, { 
