@@ -144,9 +144,11 @@ export class WhatsAppService extends EventEmitter {
 
       this.activeSessions.set(sessionId, sock);
 
-      // Set up connection event handler first
+      // Set up connection event handler
       sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect } = update;
+
+        console.log('Pairing connection update:', { connection, hasUser: !!sock.user });
 
         if (connection === 'connecting') {
           callback({
@@ -156,57 +158,55 @@ export class WhatsAppService extends EventEmitter {
           });
         }
 
-        // Check if pairing is successful (user is authenticated)
-        if (connection === 'open' || (sock.user && connection !== 'connecting')) {
-          console.log('WhatsApp connection opened for session:', sessionId);
-          
-          // Send confirmation message with session ID
-          this.sendSessionConfirmation(sock, sessionId);
+        if (connection === 'open') {
+          console.log('WhatsApp pairing connection opened for session:', sessionId);
           
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
             phoneNumber: cleanPhone,
           });
-          // Clean up session after successful pairing
-          this.cleanupSession(sessionId);
+          
+          // Send confirmation message
+          this.sendSessionConfirmation(sock, sessionId);
           return;
         }
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          console.log('Pairing connection closed with status:', statusCode);
           
-          // If we have user info, this was a successful pairing that's now closing
-          if (sock.user) {
-            console.log('Pairing successful, connection closed as expected');
-            
-            // Send confirmation message with session ID
-            this.sendSessionConfirmation(sock, sessionId);
-            
-            this.emit('session_connected', sessionId, {
-              jid: sock.user.id,
-              name: sock.user.name,
-              phoneNumber: cleanPhone,
-            });
-            this.cleanupSession(sessionId);
-            return;
-          }
-          
-          // Handle actual failures
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
-          } else {
-            console.log('Connection closed, will retry if needed...');
-            // Don't auto-reconnect for pairing sessions
+          } else if (statusCode === DisconnectReason.restartRequired) {
+            console.log('Restart required for pairing, cleaning up...');
+            this.cleanupSession(sessionId);
           }
         }
       });
 
-      // Wait a short moment for connection to establish
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for the connection to be in the right state before requesting pairing code
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection timeout while waiting for pairing code request'));
+        }, 15000);
 
-      // Request pairing code
+        const checkConnection = () => {
+          // Request pairing code when connection is connecting and not yet registered
+          if (sock.ws?.readyState === 1 && !sock.authState.creds.registered) {
+            clearTimeout(timeout);
+            resolve(true);
+          } else {
+            setTimeout(checkConnection, 500);
+          }
+        };
+
+        setTimeout(checkConnection, 1000); // Give it a moment to establish connection
+      });
+
+      console.log('Requesting pairing code for phone:', cleanPhone);
+      // Request pairing code - standard method without custom code
       const code = await sock.requestPairingCode(cleanPhone);
       
       callback({
