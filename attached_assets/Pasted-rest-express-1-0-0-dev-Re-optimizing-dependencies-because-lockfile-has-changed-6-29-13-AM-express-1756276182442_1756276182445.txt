@@ -1,0 +1,16 @@
+rest-express@1.0.0 dev
+Re-optimizing dependencies because lockfile has changed
+6:29:13 AM [express] serving on port 5000
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+6:29:26 AM [express] POST /api/sessions/generate-id 200 in 2ms :: {"id":"wa-session-c31199c3"}
+6:29:28 AM [express] POST /api/sessions 200 in 404ms :: {"id":"wa-session-c31199c3","sessionData":nu…
+Using Baileys v2.3000.1023223821, isLatest: true
+6:29:30 AM [express] POST /api/sessions/wa-session-c31199c3/qr-pairing 200 in 235ms :: {"success":tr…
+{"level":30,"time":"2025-08-27T06:29:30.350Z","pid":1757,"hostname":"a8e68914c93e","class":"baileys","browser":["Ubuntu","Chrome","22.04.4"],"helloMsg":{"clientHello":{"ephemeral":"pLthxHD/raOpSxac7rcH2Vpz0j0hIHaIoDrKC8iA2RU="}},"msg":"connected to WA"}
+{"level":30,"time":"2025-08-27T06:29:30.453Z","pid":1757,"hostname":"a8e68914c93e","class":"baileys","node":{"passive":false,"userAgent":{"platform":"WEB","appVersion":{"primary":2,"secondary":3000,"tertiary":1023223821},"mcc":"000","mnc":"000","osVersion":"0.1","device":"Desktop","osBuildNumber":"0.1","releaseChannel":"RELEASE","localeLanguageIso6391":"en","localeCountryIso31661Alpha2":"US"},"webInfo":{"webSubPlatform":"WEB_BROWSER"},"connectType":"WIFI_UNKNOWN","connectReason":"USER_ACTIVATED","devicePairingData":{"eRegid":"AAAAXA==","eKeytype":"BQ==","eIdent":"1GOhOAE1H6eWseByvnsDNL204l4yjnOSFPU5at1KIWI=","eSkeyId":"AAAB","eSkeyVal":"AyXJjI57p/mMxX999blYmhB+s1X4OHhOBdSyce8IwRo=","eSkeySig":"a5qbDJ1dEbOUzYCpngbOgM7RIpbQ/YAYeamuJZ2ufvvsAzmDzRP00a4cmFURx2CZsK7hZZDV86BqKxYYzuhPhw==","buildHash":"c9lQeUMlTdrMrIi/+YcPiA==","deviceProps":"CgZVYnVudHUYASAA"},"pull":false},"msg":"not logged in, attempting registration..."}
+{"level":30,"time":"2025-08-27T06:29:37.414Z","pid":1757,"hostname":"a8e68914c93e","class":"baileys","me":{"id":"447350152214:14@s.whatsapp.net"},"platform":"iphone","msg":"pairing configured successfully, expect to restart the connection..."}
+{"level":50,"time":"2025-08-27T06:29:37.736Z","pid":1757,"hostname":"a8e68914c93e","class":"baileys","node":{"tag":"stream:error","attrs":{"code":"515"}},"msg":"stream errored out"}
+Connection closed, reconnecting...
+{"level":30,"time":"2025-08-27T06:29:37.737Z","pid":1757,"hostname":"a8e68914c93e","class":"baileys","trace":"Error: Stream Errored (restart required)\n    at WebSocketClient.<anonymous> (/home/runner/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:524:13)\n    at WebSocketClient.emit (node:events:524:28)\n    at /home/runner/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:241:35\n    at Object.decodeFrame (/home/runner/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:144:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","msg":"connection errored"}

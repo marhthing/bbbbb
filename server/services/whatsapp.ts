@@ -38,7 +38,7 @@ export class WhatsAppService extends EventEmitter {
       this.activeSessions.set(sessionId, sock);
 
       sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, lastDisconnect, qr, receivedPendingNotifications } = update;
 
         if (qr) {
           callback({
@@ -49,22 +49,40 @@ export class WhatsAppService extends EventEmitter {
           });
         }
 
-        if (connection === 'close') {
-          const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-          
-          if (shouldReconnect) {
-            console.log('Connection closed, reconnecting...');
-            // Don't auto-reconnect for pairing sessions
-          } else {
-            this.cleanupSession(sessionId);
-            this.emit('session_failed', sessionId, 'Connection logged out');
-          }
-        } else if (connection === 'open') {
+        // Check if pairing is successful (user is authenticated)
+        if (connection === 'open' || (sock.user && connection !== 'connecting')) {
           console.log('WhatsApp connection opened for session:', sessionId);
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
           });
+          // Clean up session after successful pairing
+          this.cleanupSession(sessionId);
+          return;
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          
+          // If we have user info, this was a successful pairing that's now closing
+          if (sock.user) {
+            console.log('Pairing successful, connection closed as expected');
+            this.emit('session_connected', sessionId, {
+              jid: sock.user.id,
+              name: sock.user.name,
+            });
+            this.cleanupSession(sessionId);
+            return;
+          }
+          
+          // Handle actual failures
+          if (statusCode === DisconnectReason.loggedOut) {
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Connection logged out');
+          } else {
+            console.log('Connection closed, will retry if needed...');
+            // Don't auto-reconnect for pairing sessions
+          }
         }
       });
 
@@ -115,20 +133,42 @@ export class WhatsAppService extends EventEmitter {
       sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
 
-        if (connection === 'close') {
-          const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-          
-          if (!shouldReconnect) {
-            this.cleanupSession(sessionId);
-            this.emit('session_failed', sessionId, 'Connection logged out');
-          }
-        } else if (connection === 'open') {
+        // Check if pairing is successful (user is authenticated)
+        if (connection === 'open' || (sock.user && connection !== 'connecting')) {
           console.log('WhatsApp connection opened for session:', sessionId);
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
             phoneNumber: cleanPhone,
           });
+          // Clean up session after successful pairing
+          this.cleanupSession(sessionId);
+          return;
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          
+          // If we have user info, this was a successful pairing that's now closing
+          if (sock.user) {
+            console.log('Pairing successful, connection closed as expected');
+            this.emit('session_connected', sessionId, {
+              jid: sock.user.id,
+              name: sock.user.name,
+              phoneNumber: cleanPhone,
+            });
+            this.cleanupSession(sessionId);
+            return;
+          }
+          
+          // Handle actual failures
+          if (statusCode === DisconnectReason.loggedOut) {
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Connection logged out');
+          } else {
+            console.log('Connection closed, will retry if needed...');
+            // Don't auto-reconnect for pairing sessions
+          }
         }
       });
 
