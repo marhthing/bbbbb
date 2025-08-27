@@ -78,6 +78,12 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
           setGeneratedCode(message.code);
           setShowCodeInput(true);
           break;
+        case 'pairing_successful':
+          toast({
+            title: "Pairing Successful!",
+            description: "Code accepted. Establishing secure connection...",
+          });
+          break;
         case 'session_connected':
           onSuccess({
             sessionId: message.sessionId,
