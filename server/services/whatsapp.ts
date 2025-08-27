@@ -191,22 +191,33 @@ export class WhatsAppService extends EventEmitter {
       // Clean phone number (remove spaces, dashes, etc.) and ensure proper format
       let cleanPhone = phoneNumber.replace(/\D/g, '');
 
-      // Handle different phone number formats
+      // Remove leading + or 00 if present
       if (cleanPhone.startsWith('00')) {
-        // Remove double zero prefix (international format)
         cleanPhone = cleanPhone.substring(2);
+      }
+
+      // Ensure we have the correct format for WhatsApp
+      // WhatsApp expects numbers WITHOUT the + prefix for pairing codes
+      if (cleanPhone.startsWith('44') && cleanPhone.length === 13) {
+        // UK international format (44xxxxxxxxxx) - keep as is
+      } else if (cleanPhone.startsWith('234') && cleanPhone.length === 13) {
+        // Nigerian international format (234xxxxxxxxxx) - keep as is  
       } else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
-        // UK format starting with 0 (like 07350152214)
+        // UK local format (0xxxxxxxxxx) - convert to international
         cleanPhone = '44' + cleanPhone.substring(1);
       } else if (cleanPhone.startsWith('7') && cleanPhone.length === 10) {
-        // UK mobile without country code (like 7350152214)
+        // UK mobile without country code - add 44
         cleanPhone = '44' + cleanPhone;
-      } else if (cleanPhone.startsWith('44') && cleanPhone.length === 13) {
-        // Already in correct UK international format
-        // Do nothing
+      } else if (cleanPhone.startsWith('8') && cleanPhone.length === 10) {
+        // Nigerian mobile without country code - add 234
+        cleanPhone = '234' + cleanPhone;
       } else if (cleanPhone.startsWith('1') && cleanPhone.length === 11) {
-        // US/Canada format
-        // Do nothing
+        // US/Canada format - keep as is
+      }
+
+      // Validate the phone number length
+      if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+        throw new Error('Invalid phone number format. Please include country code.');
       }
 
       console.log('Original phone:', phoneNumber, '-> Cleaned phone:', cleanPhone);
@@ -411,11 +422,15 @@ export class WhatsAppService extends EventEmitter {
           // Wait longer for connection to stabilize
           await new Promise(resolve => setTimeout(resolve, 3000));
 
+          // For WhatsApp pairing, we need to ensure the number is in the exact format WhatsApp expects
+          console.log('Requesting pairing code for formatted phone:', cleanPhone);
+          
           const code = await sock.requestPairingCode(cleanPhone);
           pairingCodeRequested = true;
 
-          console.log('Pairing code generated successfully:', code);
-          console.log('Phone number used:', cleanPhone);
+          console.log('✅ Pairing code generated successfully:', code);
+          console.log('📱 Phone number used:', cleanPhone);
+          console.log('🔗 Code format validated for WhatsApp');
 
           callback({
             type: 'pairing_code_ready',
@@ -514,15 +529,17 @@ export class WhatsAppService extends EventEmitter {
           }, 120000); // 2 minutes timeout
 
         } catch (error) {
-          console.error('Error generating pairing code:', error.message);
+          console.error('❌ Error generating pairing code:', error.message);
 
           // Check for specific error messages
-          if (error.message.includes('Invalid phone number')) {
-            this.emit('session_failed', sessionId, 'Invalid phone number format. Please include country code (e.g., +44 for UK).');
-          } else if (error.message.includes('rate limit')) {
-            this.emit('session_failed', sessionId, 'Too many requests. Please wait a few minutes before trying again.');
+          if (error.message.includes('Invalid phone number') || error.message.includes('phone number format')) {
+            this.emit('session_failed', sessionId, 'Invalid phone number format. Examples: +447xxxxxxxxx (UK), +234xxxxxxxxxx (Nigeria), +1xxxxxxxxxx (US)');
+          } else if (error.message.includes('rate limit') || error.message.includes('too many')) {
+            this.emit('session_failed', sessionId, 'Too many requests. Please wait 5-10 minutes before trying again.');
+          } else if (error.message.includes('503') || error.message.includes('server')) {
+            this.emit('session_failed', sessionId, 'WhatsApp servers are busy. Please try again in a few minutes.');
           } else {
-            this.emit('session_failed', sessionId, 'Failed to generate pairing code. Please try again.');
+            this.emit('session_failed', sessionId, 'Failed to generate pairing code. Check your phone number format and try again.');
           }
         }
       };

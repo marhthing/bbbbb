@@ -168,15 +168,19 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
                   <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp app</p>
                 </div>
                 <div className="text-xs text-muted-foreground mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="font-semibold text-amber-800 mb-2">Important Instructions:</p>
+                  <p className="font-semibold text-amber-800 mb-2">⚠️ EXACT Steps (Follow Precisely):</p>
                   <ol className="list-decimal list-inside space-y-1 text-amber-700">
-                    <li>Open WhatsApp on your phone</li>
-                    <li>Go to Settings → Linked Devices</li>
-                    <li>Tap "Link a Device"</li>
-                    <li>Choose "Link with phone number instead"</li>
-                    <li>Enter the code exactly as shown above</li>
-                    <li>DO NOT click "Connect WhatsApp" until you see confirmation</li>
+                    <li><strong>Open WhatsApp</strong> on your phone</li>
+                    <li><strong>Tap Settings</strong> (bottom right)</li>
+                    <li><strong>Tap "Linked Devices"</strong></li>
+                    <li><strong>Tap "Link a Device"</strong></li>
+                    <li><strong>Tap "Link with phone number instead"</strong> (bottom)</li>
+                    <li><strong>Enter EXACTLY:</strong> {generatedCode || "Loading..."}</li>
+                    <li><strong>Wait for WhatsApp to process</strong> (don't close the app)</li>
                   </ol>
+                  <p className="mt-2 font-semibold text-red-700">
+                    ⚠️ If code shows "invalid", the phone number format may be wrong. Try again with proper country code.
+                  </p>
                 </div>
               </div>
 
