@@ -1,5 +1,4 @@
-// @ts-ignore
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from 'baileys-pro';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { EventEmitter } from 'events';
 import { storage } from '../storage';
 import path from 'path';
