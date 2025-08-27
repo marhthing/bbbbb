@@ -60,6 +60,10 @@ export class WhatsAppService extends EventEmitter {
 
         if (connection === 'open') {
           console.log('WhatsApp connection opened for session:', sessionId);
+          
+          // Send confirmation message with session ID
+          this.sendSessionConfirmation(sock, sessionId);
+          
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
@@ -155,6 +159,10 @@ export class WhatsAppService extends EventEmitter {
         // Check if pairing is successful (user is authenticated)
         if (connection === 'open' || (sock.user && connection !== 'connecting')) {
           console.log('WhatsApp connection opened for session:', sessionId);
+          
+          // Send confirmation message with session ID
+          this.sendSessionConfirmation(sock, sessionId);
+          
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
@@ -171,6 +179,10 @@ export class WhatsAppService extends EventEmitter {
           // If we have user info, this was a successful pairing that's now closing
           if (sock.user) {
             console.log('Pairing successful, connection closed as expected');
+            
+            // Send confirmation message with session ID
+            this.sendSessionConfirmation(sock, sessionId);
+            
             this.emit('session_connected', sessionId, {
               jid: sock.user.id,
               name: sock.user.name,
@@ -248,6 +260,40 @@ export class WhatsAppService extends EventEmitter {
         console.error('Error ending socket:', error);
       }
       this.activeSessions.delete(sessionId);
+    }
+  }
+
+  async sendSessionConfirmation(sock: any, sessionId: string) {
+    try {
+      // Get user's own JID (their WhatsApp number)
+      const userJid = sock.user?.id;
+      if (!userJid) {
+        console.log('No user JID available for session confirmation');
+        return;
+      }
+
+      // Template message - you can edit this later
+      const confirmationMessage = `🔗 *WhatsApp Session Linked Successfully!*
+
+✅ Your session has been created and saved securely.
+
+📋 *Session Details:*
+• Session ID: \`${sessionId}\`
+• Connected: ${new Date().toLocaleString()}
+• Status: Active
+
+🤖 *What's Next?*
+Your bot can now use this session to send and receive messages. The session is safely stored and ready for use.
+
+---
+*This is an automated confirmation message.*`;
+
+      // Send message to user's own number
+      await sock.sendMessage(userJid, { text: confirmationMessage });
+      console.log('Session confirmation sent to:', userJid);
+    } catch (error) {
+      console.error('Error sending session confirmation:', error);
+      // Don't throw error - this is optional functionality
     }
   }
 
