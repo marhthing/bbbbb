@@ -88,8 +88,10 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
 
   useWebSocket(sessionId, {
     onMessage: (message) => {
+      console.log('Received WebSocket message:', message);
       switch (message.type) {
         case 'pairing_code_ready':
+          console.log('Setting pairing code:', message.code);
           setGeneratedCode(message.code);
           setShowCodeInput(true);
           break;

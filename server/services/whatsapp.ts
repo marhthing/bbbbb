@@ -145,9 +145,14 @@ export class WhatsAppService extends EventEmitter {
 
       // Set up connection event handler
       sock.ev.on('connection.update', (update: any) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, isNewLogin } = update;
 
-        console.log('Pairing connection update:', { connection, hasUser: !!sock.user });
+        console.log('Pairing connection update:', { 
+          connection, 
+          hasUser: !!sock.user, 
+          isRegistered: sock.authState?.creds?.registered,
+          isNewLogin 
+        });
 
         if (connection === 'connecting') {
           callback({
@@ -157,12 +162,14 @@ export class WhatsAppService extends EventEmitter {
           });
         }
 
-        if (connection === 'open') {
-          console.log('WhatsApp pairing connection opened for session:', sessionId);
+        // Only consider fully authenticated when connection is open AND user exists
+        if (connection === 'open' && sock.user) {
+          console.log('WhatsApp pairing connection fully authenticated for session:', sessionId);
+          console.log('User info:', sock.user);
           
           this.emit('session_connected', sessionId, {
-            jid: sock.user?.id,
-            name: sock.user?.name,
+            jid: sock.user.id,
+            name: sock.user.name,
             phoneNumber: cleanPhone,
           });
           
@@ -179,16 +186,11 @@ export class WhatsAppService extends EventEmitter {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
           } else if (statusCode === DisconnectReason.restartRequired) {
-            console.log('Restart required for pairing - this is normal after successful pairing');
-            // Don't clean up immediately, let it restart naturally
-            setTimeout(() => {
-              this.emit('session_connected', sessionId, {
-                jid: sock.user?.id,
-                name: sock.user?.name,
-                phoneNumber: cleanPhone,
-              });
-              this.cleanupSession(sessionId);
-            }, 1000);
+            console.log('Restart required for pairing - waiting for reconnection...');
+            // Don't emit success yet, wait for the restart to complete
+          } else {
+            console.log('Connection closed unexpectedly');
+            this.emit('session_failed', sessionId, 'Connection failed');
           }
         }
       });
@@ -218,12 +220,21 @@ export class WhatsAppService extends EventEmitter {
         }
       };
 
-      // Try to request pairing code after a short delay
-      setTimeout(async () => {
+      // Request pairing code when connection is ready
+      const checkAndRequestCode = async () => {
         if (!pairingCodeRequested && !sock.authState.creds.registered) {
-          await requestPairingCodeWhenReady();
+          try {
+            await requestPairingCodeWhenReady();
+          } catch (error) {
+            console.error('Failed to request pairing code:', error);
+            // Try again after delay
+            setTimeout(checkAndRequestCode, 2000);
+          }
         }
-      }, 3000);
+      };
+
+      // Start checking after initial connection
+      setTimeout(checkAndRequestCode, 2000);
 
       sock.ev.on('creds.update', saveCreds);
 
