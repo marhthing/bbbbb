@@ -138,6 +138,12 @@ export class WhatsAppService extends EventEmitter {
       console.log('Cleaned phone number:', cleanPhone);
       
       const sessionPath = path.join(this.sessionsDir, sessionId);
+      
+      // Clear existing session data to start fresh
+      if (fs.existsSync(sessionPath)) {
+        console.log('Clearing existing session data for fresh pairing...');
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+      }
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
       const { version, isLatest } = await fetchLatestBaileysVersion();
 
