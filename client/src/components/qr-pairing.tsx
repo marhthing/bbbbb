@@ -40,7 +40,7 @@ interface QRPairingProps {
 export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }: QRPairingProps) {
   const [qrCode, setQrCode] = useState<string>("");
   const [connectionTimer, setConnectionTimer] = useState(0);
-  const [status, setStatus] = useState<"waiting" | "connecting" | "connected">("waiting");
+  const [status, setStatus] = useState<"waiting" | "connecting" | "qr_ready" | "scanned" | "restarting" | "connected">("waiting");
   const { toast } = useToast();
 
   const startQRPairingMutation = useMutation({
@@ -73,7 +73,11 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
 
   const { isConnected } = useWebSocket(sessionId, {
     onMessage: async (message) => {
+      console.log('Received WebSocket message:', message);
       switch (message.type) {
+        case 'connecting':
+          setStatus("connecting");
+          break;
         case 'qr_code':
           try {
             const qrDataURL = await QRCode.toDataURL(message.qr, {
@@ -81,11 +85,15 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
               margin: 2,
             });
             setQrCode(qrDataURL);
-            setStatus("waiting");
+            setStatus("qr_ready");
           } catch (error) {
             console.error('Error generating QR code:', error);
             onError("Failed to generate QR code");
           }
+          break;
+        case 'restart_required':
+          setStatus("restarting");
+          setQrCode(""); // Clear QR while restarting
           break;
         case 'session_connected':
           setStatus("connected");
@@ -173,18 +181,34 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
           <div className="bg-accent/30 p-4 rounded-lg border-l-4 border-primary">
             <div className="flex items-center justify-center space-x-2 text-sm">
               <div className={`w-3 h-3 rounded-full ${
-                status === "waiting" ? "bg-amber-400 animate-pulse" :
-                status === "connecting" ? "bg-blue-400 animate-pulse" :
-                "bg-green-400"
+                status === "waiting" || status === "connecting" ? "bg-blue-400 animate-pulse" :
+                status === "qr_ready" ? "bg-amber-400 animate-pulse" :
+                status === "scanned" || status === "restarting" ? "bg-green-400 animate-pulse" :
+                status === "connected" ? "bg-green-400" : "bg-gray-400"
               }`}></div>
               <span className="font-medium" data-testid="text-connection-status">
-                {status === "waiting" ? "Waiting for scan..." :
-                 status === "connecting" ? "Connecting..." :
-                 "Connected!"}
+                {status === "waiting" ? "Initializing..." :
+                 status === "connecting" ? "Connecting to WhatsApp..." :
+                 status === "qr_ready" ? "Waiting for QR scan..." :
+                 status === "scanned" ? "QR Scanned! Processing..." :
+                 status === "restarting" ? "Finalizing connection..." :
+                 status === "connected" ? "Connected!" : "Waiting..."}
               </span>
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
               <span data-testid="text-connection-timer">{formatTime(connectionTimer)}</span> elapsed
+              {status === "qr_ready" && (
+                <div className="mt-1 text-center">
+                  <span className="inline-block w-2 h-2 bg-amber-400 rounded-full animate-ping mr-1"></span>
+                  Ready to scan
+                </div>
+              )}
+              {status === "restarting" && (
+                <div className="mt-1 text-center text-green-600">
+                  <i className="fas fa-check-circle mr-1"></i>
+                  QR code was scanned successfully
+                </div>
+              )}
             </div>
           </div>
 

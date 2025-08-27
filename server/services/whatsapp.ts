@@ -39,6 +39,7 @@ export class WhatsAppService extends EventEmitter {
 
       sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr, receivedPendingNotifications } = update;
+        console.log('Connection update:', { connection, qr: !!qr, receivedPendingNotifications });
 
         if (qr) {
           callback({
@@ -49,40 +50,58 @@ export class WhatsAppService extends EventEmitter {
           });
         }
 
-        // Check if pairing is successful (user is authenticated)
-        if (connection === 'open' || (sock.user && connection !== 'connecting')) {
+        if (connection === 'connecting') {
+          callback({
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        if (connection === 'open') {
           console.log('WhatsApp connection opened for session:', sessionId);
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
           });
-          // Clean up session after successful pairing
-          this.cleanupSession(sessionId);
           return;
         }
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          console.log('Connection closed with status:', statusCode);
           
-          // If we have user info, this was a successful pairing that's now closing
-          if (sock.user) {
-            console.log('Pairing successful, connection closed as expected');
-            this.emit('session_connected', sessionId, {
-              jid: sock.user.id,
-              name: sock.user.name,
+          // Handle the forced disconnect after QR scan (restartRequired)
+          if (statusCode === DisconnectReason.restartRequired) {
+            console.log('Restart required after QR scan - this is normal, restarting...');
+            callback({
+              type: 'restart_required',
+              sessionId,
+              timestamp: new Date().toISOString(),
             });
+            
+            // Clean up current session and restart
             this.cleanupSession(sessionId);
+            
+            // Restart the pairing process after a short delay
+            setTimeout(() => {
+              this.startQRPairing(sessionId, callback).catch(error => {
+                console.error('Error restarting QR pairing:', error);
+                this.emit('session_failed', sessionId, 'Failed to restart after QR scan');
+              });
+            }, 1000);
             return;
           }
           
-          // Handle actual failures
+          // Handle logout
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
-          } else {
-            console.log('Connection closed, will retry if needed...');
-            // Don't auto-reconnect for pairing sessions
+            return;
           }
+          
+          // Handle other disconnects
+          console.log('Connection closed, will retry if needed...');
         }
       });
 
