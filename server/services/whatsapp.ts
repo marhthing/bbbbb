@@ -291,15 +291,16 @@ export class WhatsAppService extends EventEmitter {
         browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        connectTimeoutMs: 60_000,
-        defaultQueryTimeoutMs: 60_000,
+        connectTimeoutMs: 120_000, // Increased timeout
+        defaultQueryTimeoutMs: 120_000, // Increased timeout
         keepAliveIntervalMs: 30_000,
-        retryRequestDelayMs: 1_000,
-        maxMsgRetryCount: 3,
+        retryRequestDelayMs: 2_000, // Increased retry delay
+        maxMsgRetryCount: 5, // More retries
         getMessage: async () => undefined,
         shouldIgnoreJid: () => false,
         shouldSyncHistoryMessage: () => false,
         emitOwnEvents: false,
+        qrTimeout: 120_000, // Increased QR timeout
       });
 
       this.activeSessions.set(sessionId, sock);
@@ -574,7 +575,11 @@ export class WhatsAppService extends EventEmitter {
         browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        connectTimeoutMs: 30_000,
+        connectTimeoutMs: 120_000, // Increased timeout
+        defaultQueryTimeoutMs: 120_000, // Increased timeout
+        keepAliveIntervalMs: 30_000,
+        retryRequestDelayMs: 2_000, // Increased retry delay
+        maxMsgRetryCount: 5, // More retries
       });
 
       this.activeSessions.set(sessionId, sock);
