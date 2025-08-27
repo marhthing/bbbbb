@@ -32,7 +32,7 @@ export const insertWhatsappSessionSchema = createInsertSchema(whatsappSessions).
   pairingMethod: true,
 });
 
-export const InsertUser = z.infer(insertUserSchema);
+export const InsertUser = insertUserSchema._type;
 export const User = users.$inferSelect;
 export const WhatsappSession = whatsappSessions.$inferSelect;
-export const InsertWhatsappSession = z.infer(insertWhatsappSessionSchema);
+export const InsertWhatsappSession = insertWhatsappSessionSchema._type;
