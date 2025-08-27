@@ -187,6 +187,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Session not found" });
       }
 
+      // Check if there's already a session with this phone number and delete it
+      const existingSessionWithPhone = await storage.getSessionByPhoneNumber(phoneNumber);
+      if (existingSessionWithPhone && existingSessionWithPhone.id !== sessionId) {
+        console.log(`Deleting existing session for phone number ${phoneNumber}: ${existingSessionWithPhone.id}`);
+        // Clean up the WhatsApp service session first
+        whatsappService.cleanupSession(existingSessionWithPhone.id);
+        // Delete from database
+        await storage.deleteSession(existingSessionWithPhone.id);
+      }
+
       // Clean up any existing session first
       whatsappService.cleanupSession(sessionId);
 
