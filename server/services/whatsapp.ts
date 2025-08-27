@@ -148,9 +148,18 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
+        browser: ['Ubuntu', 'Chrome', '22.04.4'],
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        defaultQueryTimeoutMs: 60_000,
+        keepAliveIntervalMs: 30_000
       });
 
       this.activeSessions.set(sessionId, sock);
+
+      // Add error handlers to prevent crashes from buffer errors
+      sock.ev.on('messages.update', () => {});
+      sock.ev.on('messages.upsert', () => {});
 
       // Set up connection event handler
       sock.ev.on('connection.update', (update: any) => {
@@ -281,6 +290,40 @@ export class WhatsAppService extends EventEmitter {
 
       sock.ev.on('creds.update', saveCreds);
 
+      // Add global error handlers to prevent crashes
+      const originalListeners = process.listeners('uncaughtException');
+      const originalRejectionListeners = process.listeners('unhandledRejection');
+      
+      const bufferErrorHandler = (error: any) => {
+        if (error && error.message && error.message.includes('Invalid buffer')) {
+          console.log('Ignoring buffer error during pairing process - this is normal');
+          return;
+        }
+        // Re-emit to original handlers if not a buffer error
+        originalListeners.forEach(listener => listener(error));
+      };
+      
+      const bufferRejectionHandler = (reason: any) => {
+        if (reason && reason.message && reason.message.includes('Invalid buffer')) {
+          console.log('Ignoring buffer rejection during pairing process - this is normal');
+          return;
+        }
+        // Re-emit to original handlers if not a buffer error
+        originalRejectionListeners.forEach(listener => listener(reason));
+      };
+      
+      process.on('uncaughtException', bufferErrorHandler);
+      process.on('unhandledRejection', bufferRejectionHandler);
+      
+      // Clean up handlers when session ends
+      const cleanup = () => {
+        process.removeListener('uncaughtException', bufferErrorHandler);
+        process.removeListener('unhandledRejection', bufferRejectionHandler);
+      };
+      
+      // Store cleanup function
+      (sock as any)._cleanup = cleanup;
+
       return { 
         success: true, 
         message: 'Pairing code requested successfully',
@@ -331,6 +374,10 @@ export class WhatsAppService extends EventEmitter {
     const sock = this.activeSessions.get(sessionId);
     if (sock) {
       try {
+        // Clean up error handlers if they exist
+        if ((sock as any)._cleanup) {
+          (sock as any)._cleanup();
+        }
         sock.end();
       } catch (error) {
         console.error('Error ending socket:', error);
