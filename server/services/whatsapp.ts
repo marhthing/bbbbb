@@ -247,10 +247,7 @@ export class WhatsAppService extends EventEmitter {
       }
 
       // Clean up any existing session first
-      if (this.activeSessions.has(sessionId)) {
-        console.log('Cleaning up existing session before starting QR pairing');
-        this.cleanupSession(sessionId);
-      }
+      this.cleanupSession(sessionId);
 
       // Clean phone number (remove spaces, dashes, etc.)
       let cleanPhone = phoneNumber.replace(/\D/g, '');
@@ -260,77 +257,106 @@ export class WhatsAppService extends EventEmitter {
         cleanPhone = cleanPhone.substring(1);
       }
 
-      // Validate the phone number length (should already be in correct format from frontend)
+      // Validate the phone number length
       if (cleanPhone.length < 10 || cleanPhone.length > 15) {
         throw new Error('Invalid phone number format. Please check country code and number.');
-      }
-
-      // Ensure the phone number is in the exact format WhatsApp expects for pairing
-      // WhatsApp pairing codes are very strict about format
-      if (!cleanPhone.match(/^[1-9]\d{6,14}$/)) {
-        throw new Error('Invalid phone number format for pairing. Please ensure the number is correct.');
       }
 
       console.log('Original phone:', phoneNumber, '-> Cleaned phone for pairing:', cleanPhone);
 
       const sessionPath = path.join(this.sessionsDir, sessionId);
 
-      // Clear existing session data completely for fresh pairing
+      // Completely clear existing session data
       if (fs.existsSync(sessionPath)) {
-        console.log('Clearing existing session data for fresh pairing...');
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
 
-      // Also clear any cached authentication state
-      if (this.activeSessions.has(sessionId)) {
-        this.cleanupSession(sessionId);
-      }
+      // Wait for cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Only clear the current session directory for fresh pairing
-      console.log('Preparing fresh session for pairing code request');
-
-      // Add delay to ensure cleanup completes
-      await new Promise(resolve => setTimeout(resolve, 2000));
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
       const { version, isLatest } = await fetchLatestBaileysVersion();
 
       console.log(`Using Baileys v${version.join('.')}, isLatest: ${isLatest}`);
 
+      // Create socket with optimized settings for pairing
       const sock = makeWASocket({
         version,
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Chrome (Linux)', 'Chrome', '120.0.0.0'], // Use stable browser info for pairing
+        browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        defaultQueryTimeoutMs: 90_000, // Longer timeout for pairing
-        keepAliveIntervalMs: 10_000, // More frequent keep-alive for pairing
-        connectTimeoutMs: 45_000, // Longer connection timeout for pairing
-        qrTimeout: 120_000, // 2 minutes for pairing code
-        retryRequestDelayMs: 2_000,
-        maxMsgRetryCount: 5, // More retries for pairing
+        connectTimeoutMs: 60_000,
+        defaultQueryTimeoutMs: 60_000,
+        keepAliveIntervalMs: 30_000,
+        retryRequestDelayMs: 1_000,
+        maxMsgRetryCount: 3,
+        getMessage: async () => undefined,
+        shouldIgnoreJid: () => false,
+        shouldSyncHistoryMessage: () => false,
         emitOwnEvents: false,
-        shouldIgnoreJid: () => false, // Don't ignore any JIDs during pairing
-        shouldSyncHistoryMessage: () => false, // Don't sync history during pairing
-        getMessage: async () => undefined // Simplified message handling
       });
 
       this.activeSessions.set(sessionId, sock);
 
-      // Add error handlers to prevent crashes from buffer errors
-      sock.ev.on('messages.update', () => {});
-      sock.ev.on('messages.upsert', () => {});
+      let pairingCodeGenerated = false;
+      let connectionEstablished = false;
 
-      // Set up connection event handler
+      // Handle credentials updates - this is key for detecting successful pairing
+      sock.ev.on('creds.update', (creds) => {
+        saveCreds(creds);
+        
+        console.log('📋 Credentials updated:', {
+          registered: creds.registered,
+          hasMe: !!creds.me,
+          hasNoKey: creds.noiseKey ? 'present' : 'missing',
+          hasSignedIdentityKey: creds.signedIdentityKey ? 'present' : 'missing'
+        });
+
+        // This indicates successful pairing completion
+        if (creds.registered && creds.me) {
+          console.log('🎉 PAIRING VERIFICATION SUCCESSFUL!');
+          console.log('✅ Phone number verified:', cleanPhone);
+          console.log('✅ User authenticated:', creds.me.id);
+
+          connectionEstablished = true;
+
+          callback({
+            type: 'pairing_verified',
+            sessionId,
+            phoneNumber: cleanPhone,
+            userId: creds.me.id,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Give a moment for credentials to be fully saved
+          setTimeout(() => {
+            this.startVerifiedSession(sessionId, cleanPhone, callback);
+          }, 2000);
+        } else if (creds.registered) {
+          console.log('✅ User registration detected - pairing in progress...');
+          
+          callback({
+            type: 'pairing_in_progress',
+            sessionId,
+            phoneNumber: cleanPhone,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      });
+
+      // Handle connection updates
       sock.ev.on('connection.update', (update: any) => {
-        const { connection, lastDisconnect, isNewLogin } = update;
-
-        console.log('Pairing connection update:', {
-          connection,
+        const { connection, lastDisconnect, qr, isOnline } = update;
+        
+        console.log('🔄 Connection update:', { 
+          connection, 
+          isOnline,
           hasUser: !!sock.user,
-          isRegistered: sock.authState?.creds?.registered,
-          isNewLogin
+          registered: sock.authState?.creds?.registered,
+          sessionReady: connectionEstablished
         });
 
         if (connection === 'connecting') {
@@ -341,15 +367,188 @@ export class WhatsAppService extends EventEmitter {
           });
         }
 
-        // Only consider fully authenticated when connection is open AND user exists
+        if (connection === 'open') {
+          console.log('🔗 WebSocket connection established');
+          
+          if (!pairingCodeGenerated) {
+            // Generate pairing code immediately when connection opens
+            this.generatePairingCode(sock, cleanPhone, sessionId, callback)
+              .then(() => {
+                pairingCodeGenerated = true;
+              })
+              .catch(error => {
+                console.error('Failed to generate pairing code:', error);
+                this.emit('session_failed', sessionId, 'Failed to generate pairing code: ' + error.message);
+              });
+          }
+
+          // If we already have user info (authenticated), proceed directly
+          if (sock.user && connectionEstablished) {
+            console.log('🎯 Already authenticated with user:', sock.user.name);
+            
+            callback({
+              type: 'session_connected',
+              sessionId,
+              phoneNumber: cleanPhone,
+              name: sock.user.name,
+              jid: sock.user.id,
+              timestamp: new Date().toISOString(),
+            });
+
+            this.emit('session_connected', sessionId, {
+              jid: sock.user.id,
+              name: sock.user.name,
+              phoneNumber: cleanPhone,
+            });
+            
+            this.sendSessionConfirmation(sock, sessionId);
+          }
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          console.log('❌ Connection closed. Status:', statusCode);
+
+          if (connectionEstablished) {
+            // Pairing was successful, just need to reconnect
+            console.log('🔄 Reconnecting authenticated session...');
+            setTimeout(() => {
+              this.startVerifiedSession(sessionId, cleanPhone, callback);
+            }, 2000);
+          } else if (statusCode === DisconnectReason.loggedOut) {
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Session logged out. Please try again.');
+          } else if (statusCode === DisconnectReason.restartRequired) {
+            console.log('🔄 Restart required - checking credentials...');
+            
+            if (sock.authState?.creds?.registered) {
+              console.log('✅ Credentials exist, restarting verified session');
+              setTimeout(() => {
+                this.startVerifiedSession(sessionId, cleanPhone, callback);
+              }, 2000);
+            } else {
+              console.log('❌ No valid credentials, cleaning up');
+              this.cleanupSession(sessionId);
+              this.emit('session_failed', sessionId, 'Authentication failed. Please try again.');
+            }
+          } else {
+            // Other disconnect reasons - retry if we haven't succeeded yet
+            if (!connectionEstablished && !pairingCodeGenerated) {
+              console.log('🔄 Retrying connection for pairing...');
+              this.cleanupSession(sessionId);
+              setTimeout(() => {
+                this.requestPairingCode(sessionId, phoneNumber, callback).catch(console.error);
+              }, 3000);
+            } else {
+              console.log('❌ Connection failed');
+              this.cleanupSession(sessionId);
+              this.emit('session_failed', sessionId, 'Connection failed. Please try again.');
+            }
+          }
+        }
+      });
+
+      // Set timeout for the entire pairing process
+      setTimeout(() => {
+        if (!connectionEstablished) {
+          console.log('⏰ Pairing timeout - no successful verification within 5 minutes');
+          this.cleanupSession(sessionId);
+          this.emit('session_failed', sessionId, 'Pairing timeout. Please generate a new code and try again.');
+        }
+      }, 300000); // 5 minutes timeout
+
+      return {
+        success: true,
+        message: 'Pairing process started successfully',
+        phoneNumber: cleanPhone
+      };
+
+    } catch (error) {
+      console.error('❌ Error in pairing process:', error);
+      this.cleanupSession(sessionId);
+      this.emit('session_failed', sessionId, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  private async generatePairingCode(sock: any, phoneNumber: string, sessionId: string, callback: (data: any) => void): Promise<void> {
+    try {
+      console.log('🔢 Generating pairing code for:', phoneNumber);
+      
+      const code = await sock.requestPairingCode(phoneNumber);
+      
+      console.log('✅ Pairing code generated:', code);
+      console.log('📱 Phone number:', phoneNumber);
+      
+      callback({
+        type: 'pairing_code_ready',
+        sessionId,
+        phoneNumber: phoneNumber,
+        code: code,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log('📋 PAIRING INSTRUCTIONS:');
+      console.log('1. Open WhatsApp on your phone');
+      console.log('2. Go to Settings → Linked Devices');
+      console.log('3. Tap "Link a Device"');
+      console.log('4. Choose "Link with phone number instead"');
+      console.log(`5. Enter exactly: ${code}`);
+      console.log('6. The connection will detect verification automatically');
+
+    } catch (error) {
+      console.error('❌ Failed to generate pairing code:', error);
+      throw new Error('Failed to generate pairing code: ' + error.message);
+    }
+  }
+
+  private async startVerifiedSession(sessionId: string, phoneNumber: string, callback: (data: any) => void): Promise<void> {
+    try {
+      console.log('🚀 Starting verified session for:', sessionId);
+      
+      // Clean up the pairing session
+      this.cleanupSession(sessionId);
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const sessionPath = path.join(this.sessionsDir, sessionId);
+      const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+      const { version } = await fetchLatestBaileysVersion();
+
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        printQRInTerminal: false,
+        generateHighQualityLinkPreview: true,
+        browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        connectTimeoutMs: 30_000,
+      });
+
+      this.activeSessions.set(sessionId, sock);
+
+      sock.ev.on('connection.update', (update: any) => {
+        const { connection, lastDisconnect } = update;
+        console.log('🔄 Verified session update:', { connection, hasUser: !!sock.user });
+
+        if (connection === 'connecting') {
+          callback({
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         if (connection === 'open' && sock.user) {
-          console.log('WhatsApp pairing connection fully authenticated for session:', sessionId);
-          console.log('User info:', sock.user);
+          console.log('✅ Verified session connected successfully!');
+          console.log('👤 User:', sock.user.name, 'JID:', sock.user.id);
 
           callback({
             type: 'session_connected',
             sessionId,
-            phoneNumber: cleanPhone,
+            phoneNumber: phoneNumber,
             name: sock.user.name,
             jid: sock.user.id,
             timestamp: new Date().toISOString(),
@@ -358,293 +557,32 @@ export class WhatsAppService extends EventEmitter {
           this.emit('session_connected', sessionId, {
             jid: sock.user.id,
             name: sock.user.name,
-            phoneNumber: cleanPhone,
+            phoneNumber: phoneNumber,
           });
 
-          // Send confirmation message
           this.sendSessionConfirmation(sock, sessionId);
-          return;
         }
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
-          console.log('Pairing connection closed with status:', statusCode);
-
-          // Check if we have valid credentials before handling disconnect
-          const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me;
+          console.log('❌ Verified session closed:', statusCode);
 
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
-            this.emit('session_failed', sessionId, 'Connection logged out - please try again');
-          } else if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
-            if (hasValidCreds) {
-              console.log('✅ Pairing successful! Restarting for authenticated session...');
-
-              callback({
-                type: 'pairing_successful',
-                sessionId,
-                phoneNumber: cleanPhone,
-                timestamp: new Date().toISOString(),
-              });
-
-              // Clean up current session
-              this.cleanupSession(sessionId);
-
-              // Start authenticated session
-              setTimeout(async () => {
-                try {
-                  await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
-                } catch (error) {
-                  console.error('Error starting authenticated session:', error);
-                  this.emit('session_failed', sessionId, 'Failed to establish authenticated connection');
-                }
-              }, 2000);
-              return;
-            } else {
-              console.log('Restart required but no valid credentials - continuing pairing...');
-              this.cleanupSession(sessionId);
-              setTimeout(() => {
-                this.requestPairingCode(sessionId, phoneNumber, callback).catch(error => {
-                  console.error('Error restarting pairing:', error);
-                  this.emit('session_failed', sessionId, 'Failed to restart pairing process');
-                });
-              }, 3000);
-              return;
-            }
-          } else if (statusCode === 503) {
-            console.log('WhatsApp server error (503) - this is temporary, you can try again');
-            this.cleanupSession(sessionId);
-            this.emit('session_failed', sessionId, 'WhatsApp servers are busy. Please wait a minute and try again.');
-          } else if (statusCode === 428) {
-            console.log('Connection precondition failed (428) - retrying with fresh session...');
-            this.cleanupSession(sessionId);
-            setTimeout(() => {
-              this.requestPairingCode(sessionId, phoneNumber, callback).catch(error => {
-                console.error('Error retrying pairing:', error);
-                this.emit('session_failed', sessionId, 'Failed to retry pairing process');
-              });
-            }, 5000);
+            this.emit('session_failed', sessionId, 'Session logged out');
           } else {
-            // Check if we have credentials even with unexpected disconnect
-            if (hasValidCreds) {
-              console.log('Unexpected disconnect but credentials exist - trying authenticated session...');
-              this.cleanupSession(sessionId);
-              setTimeout(async () => {
-                try {
-                  await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
-                } catch (error) {
-                  console.error('Error starting authenticated session:', error);
-                  this.emit('session_failed', sessionId, 'Connection established but failed to connect');
-                }
-              }, 2000);
-            } else {
-              console.log('Connection closed unexpectedly with status:', statusCode);
-              this.cleanupSession(sessionId);
-              this.emit('session_failed', sessionId, 'Connection failed. Please try again in a few moments.');
-            }
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Connection lost');
           }
         }
       });
 
-      // Wait for connection to be ready and then request pairing code
-      let pairingCodeRequested = false;
-
-      const requestPairingCodeWhenReady = async () => {
-        if (pairingCodeRequested) return;
-
-        try {
-          console.log('Requesting pairing code for phone:', cleanPhone);
-
-          // Wait for connection to be more stable before requesting code
-          await new Promise(resolve => setTimeout(resolve, 5000));
-
-          // Validate connection state before requesting pairing code
-          if (sock.readyState !== sock.OPEN && sock.readyState !== sock.CONNECTING) {
-            throw new Error('Socket not in valid state for pairing code request');
-          }
-
-          console.log('Socket ready. Requesting pairing code for:', cleanPhone);
-
-          const code = await sock.requestPairingCode(cleanPhone);
-          pairingCodeRequested = true;
-
-          console.log('✅ Pairing code generated successfully:', code);
-          console.log('📱 Phone number used:', cleanPhone);
-          console.log('🔗 Code format validated for WhatsApp');
-
-          callback({
-            type: 'pairing_code_ready',
-            sessionId,
-            phoneNumber: cleanPhone,
-            code: code,
-            timestamp: new Date().toISOString(),
-          });
-
-          // Log instructions for user
-          console.log('='.repeat(50));
-          console.log('PAIRING CODE INSTRUCTIONS:');
-          console.log('1. Open WhatsApp on your phone');
-          console.log('2. Go to Settings → Linked Devices');
-          console.log('3. Tap "Link a Device"');
-          console.log('4. Choose "Link with phone number instead"');
-          console.log(`5. Enter this code: ${code}`);
-          console.log('='.repeat(50));
-
-          // Set up a listener for successful authentication
-          const authSuccessHandler = () => {
-            if (sock.authState?.creds?.registered) {
-              console.log('✅ Authentication successful! User is now registered.');
-
-              // Wait a bit for connection to stabilize, then attempt to connect
-              setTimeout(async () => {
-                try {
-                  console.log('Starting authenticated connection after successful pairing...');
-
-                  // Close current connection and start fresh authenticated session
-                  this.cleanupSession(sessionId);
-                  await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
-                } catch (error) {
-                  console.error('Error starting authenticated session:', error);
-                  this.emit('session_failed', sessionId, 'Failed to establish connection after pairing');
-                }
-              }, 3000);
-            }
-          };
-
-          // Monitor for authentication changes
-          sock.ev.on('creds.update', (creds) => {
-            console.log('Credentials updated:', {
-              registered: creds.registered,
-              hasMe: !!creds.me,
-              meId: creds.me?.id
-            });
-
-            if (creds.registered || creds.me) {
-              console.log('✅ Pairing successful! Credentials indicate user is registered.');
-
-              callback({
-                type: 'pairing_successful',
-                sessionId,
-                phoneNumber: cleanPhone,
-                timestamp: new Date().toISOString(),
-              });
-
-              // Don't immediately start authenticated session, wait for connection to stabilize
-              setTimeout(() => {
-                if (sock.user) {
-                  // Already connected with user info
-                  callback({
-                    type: 'session_connected',
-                    sessionId,
-                    phoneNumber: cleanPhone,
-                    name: sock.user.name,
-                    jid: sock.user.id,
-                    timestamp: new Date().toISOString(),
-                  });
-
-                  this.emit('session_connected', sessionId, {
-                    jid: sock.user.id,
-                    name: sock.user.name,
-                    phoneNumber: cleanPhone,
-                  });
-                } else {
-                  // Need to restart for authenticated session
-                  console.log('Restarting for authenticated session...');
-                  this.cleanupSession(sessionId);
-                  setTimeout(() => {
-                    this.startAuthenticatedSession(sessionId, cleanPhone, callback);
-                  }, 2000);
-                }
-              }, 3000);
-            }
-          });
-
-          // Set a longer timeout for pairing code validation - WhatsApp sometimes takes longer
-          setTimeout(() => {
-            if (!sock.authState?.creds?.registered && !sock.user) {
-              console.log('Pairing code timeout - no successful authentication within 3 minutes');
-              this.emit('session_failed', sessionId, 'Pairing code expired. Please generate a new code and try again.');
-              this.cleanupSession(sessionId);
-            }
-          }, 180000); // 3 minutes timeout
-
-        } catch (error) {
-          console.error('❌ Error generating pairing code:', error.message);
-
-          // Check for specific error messages
-          if (error.message.includes('Invalid phone number') || error.message.includes('phone number format')) {
-            this.emit('session_failed', sessionId, 'Invalid phone number format. Examples: +447xxxxxxxxx (UK), +234xxxxxxxxxx (Nigeria), +1xxxxxxxxxx (US)');
-          } else if (error.message.includes('rate limit') || error.message.includes('too many')) {
-            this.emit('session_failed', sessionId, 'Too many requests. Please wait 5-10 minutes before trying again.');
-          } else if (error.message.includes('503') || error.message.includes('server')) {
-            this.emit('session_failed', sessionId, 'WhatsApp servers are busy. Please try again in a few minutes.');
-          } else {
-            this.emit('session_failed', sessionId, 'Failed to generate pairing code. Check your phone number format and try again.');
-          }
-        }
-      };
-
-      // Request pairing code when connection is ready
-      const checkAndRequestCode = async () => {
-        if (!pairingCodeRequested && !sock.authState.creds.registered) {
-          try {
-            await requestPairingCodeWhenReady();
-          } catch (error) {
-            console.error('Failed to request pairing code:', error);
-            // Try again after delay
-            setTimeout(checkAndRequestCode, 2000);
-          }
-        }
-      };
-
-      // Start checking after initial connection - reduced delay for faster code generation
-      setTimeout(checkAndRequestCode, 3000);
-
       sock.ev.on('creds.update', saveCreds);
 
-      // Add global error handlers to prevent crashes
-      const originalListeners = process.listeners('uncaughtException');
-      const originalRejectionListeners = process.listeners('unhandledRejection');
-
-      const bufferErrorHandler = (error: any) => {
-        if (error && error.message && error.message.includes('Invalid buffer')) {
-          console.log('Ignoring buffer error during pairing process - this is normal');
-          return;
-        }
-        // Re-emit to original handlers if not a buffer error
-        originalListeners.forEach(listener => listener(error));
-      };
-
-      const bufferRejectionHandler = (reason: any) => {
-        if (reason && reason.message && reason.message.includes('Invalid buffer')) {
-          console.log('Ignoring buffer rejection during pairing process - this is normal');
-          return;
-        }
-        // Re-emit to original handlers if not a buffer error
-        originalRejectionListeners.forEach(listener => listener(reason));
-      };
-
-      process.on('uncaughtException', bufferErrorHandler);
-      process.on('unhandledRejection', bufferRejectionHandler);
-
-      // Clean up handlers when session ends
-      const cleanup = () => {
-        process.removeListener('uncaughtException', bufferErrorHandler);
-        process.removeListener('unhandledRejection', bufferRejectionHandler);
-      };
-
-      // Store cleanup function
-      (sock as any)._cleanup = cleanup;
-
-      return {
-        success: true,
-        message: 'Pairing code requested successfully',
-        phoneNumber: cleanPhone
-      };
     } catch (error) {
-      console.error('Error requesting pairing code:', error);
-      this.emit('session_failed', sessionId, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
+      console.error('❌ Error in verified session:', error);
+      this.cleanupSession(sessionId);
+      this.emit('session_failed', sessionId, 'Failed to establish verified session');
     }
   }
 

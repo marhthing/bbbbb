@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -77,7 +76,7 @@ const countryCodes = [
 export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep }: CodePairingProps) {
   const [countryCode, setCountryCode] = useState("44"); // Default to UK
   const [phoneNumber, setPhoneNumber] = useState("");
-  
+
   const [generatedCode, setGeneratedCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
   const { toast } = useToast();
@@ -93,7 +92,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
 
       // Clean the phone number: remove spaces, dashes, and leading zero if present
       let cleanPhone = phoneNumber.replace(/\D/g, '');
-      
+
       // Strip leading zero if present
       if (cleanPhone.startsWith('0')) {
         cleanPhone = cleanPhone.substring(1);
@@ -125,18 +124,38 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     onMessage: (message) => {
       console.log('Received WebSocket message:', message);
       switch (message.type) {
+        case 'connecting':
+          toast({
+            title: "Connecting...",
+            description: "Establishing connection to WhatsApp servers",
+          });
+          break;
         case 'pairing_code_ready':
           console.log('Setting pairing code:', message.code);
           setGeneratedCode(message.code);
           setShowCodeInput(true);
-          break;
-        case 'pairing_successful':
           toast({
-            title: "Pairing Successful!",
-            description: "Code accepted. Establishing secure connection...",
+            title: "Code Generated!",
+            description: `Your pairing code is: ${message.code}`,
+          });
+          break;
+        case 'pairing_in_progress':
+          toast({
+            title: "Verification in Progress...",
+            description: "WhatsApp is processing your pairing code",
+          });
+          break;
+        case 'pairing_verified':
+          toast({
+            title: "Code Verified! ✅",
+            description: "Your phone number has been verified. Connecting...",
           });
           break;
         case 'session_connected':
+          toast({
+            title: "Connected Successfully! 🎉",
+            description: `Welcome ${message.name || 'User'}!`,
+          });
           onSuccess({
             sessionId: message.sessionId,
             connectedAt: message.timestamp,
@@ -145,8 +164,10 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
           });
           break;
         case 'session_failed':
-          onError(message.error || "Connection failed");
+          onError(message.error || "Pairing failed");
           break;
+        default:
+          console.log('Unhandled message type:', message.type);
       }
     },
     onError: () => {
@@ -251,20 +272,22 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
                   </div>
                   <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp app</p>
                 </div>
-                <div className="text-xs text-muted-foreground mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="font-semibold text-amber-800 mb-2">⚠️ EXACT Steps (Follow Precisely):</p>
-                  <ol className="list-decimal list-inside space-y-1 text-amber-700">
+                <div className="text-xs text-muted-foreground mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="font-semibold text-blue-800 mb-2">📱 PAIRING INSTRUCTIONS:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-blue-700">
                     <li><strong>Open WhatsApp</strong> on your phone</li>
-                    <li><strong>Tap Settings</strong> (bottom right)</li>
-                    <li><strong>Tap "Linked Devices"</strong></li>
+                    <li><strong>Go to Settings</strong> → <strong>Linked Devices</strong></li>
                     <li><strong>Tap "Link a Device"</strong></li>
-                    <li><strong>Tap "Link with phone number instead"</strong> (bottom)</li>
-                    <li><strong>Enter EXACTLY:</strong> {generatedCode || "Loading..."}</li>
-                    <li><strong>Wait for WhatsApp to process</strong> (don't close the app)</li>
+                    <li><strong>Choose "Link with phone number instead"</strong></li>
+                    <li><strong>Enter this 8-digit code:</strong> <span className="font-mono font-bold bg-blue-100 px-1 rounded">{generatedCode}</span></li>
+                    <li><strong>Tap "Link Device"</strong> in WhatsApp</li>
                   </ol>
-                  <p className="mt-2 font-semibold text-red-700">
-                    ⚠️ If code shows "invalid", try refreshing and generating a new code.
-                  </p>
+                  <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded">
+                    <p className="text-green-800 font-medium flex items-center gap-2">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Connection is active - We'll detect when you verify the code!
+                    </p>
+                  </div>
                 </div>
               </div>
 
