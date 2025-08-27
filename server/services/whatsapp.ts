@@ -144,38 +144,17 @@ export class WhatsAppService extends EventEmitter {
 
       this.activeSessions.set(sessionId, sock);
 
-      // Wait for connection before requesting pairing code
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Connection timeout'));
-        }, 10000);
-
-        const connectionHandler = (update: any) => {
-          const { connection } = update;
-          if (connection === 'connecting' || connection === 'open') {
-            clearTimeout(timeout);
-            sock.ev.off('connection.update', connectionHandler);
-            resolve(true);
-          }
-        };
-
-        sock.ev.on('connection.update', connectionHandler);
-      });
-
-      // Request custom pairing code "MATDEV01" 
-      const customCode = "MATDEV01";
-      const code = await sock.requestPairingCode(cleanPhone, customCode);
-      
-      callback({
-        type: 'pairing_code_ready',
-        sessionId,
-        phoneNumber: cleanPhone,
-        customCode: customCode,
-        timestamp: new Date().toISOString(),
-      });
-
+      // Set up connection event handler first
       sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect } = update;
+
+        if (connection === 'connecting') {
+          callback({
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          });
+        }
 
         // Check if pairing is successful (user is authenticated)
         if (connection === 'open' || (sock.user && connection !== 'connecting')) {
@@ -222,6 +201,20 @@ export class WhatsAppService extends EventEmitter {
             // Don't auto-reconnect for pairing sessions
           }
         }
+      });
+
+      // Wait a short moment for connection to establish
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Request pairing code
+      const code = await sock.requestPairingCode(cleanPhone);
+      
+      callback({
+        type: 'pairing_code_ready',
+        sessionId,
+        phoneNumber: cleanPhone,
+        code: code,
+        timestamp: new Date().toISOString(),
       });
 
       sock.ev.on('creds.update', saveCreds);
