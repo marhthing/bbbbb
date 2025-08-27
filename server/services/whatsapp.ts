@@ -179,8 +179,16 @@ export class WhatsAppService extends EventEmitter {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
           } else if (statusCode === DisconnectReason.restartRequired) {
-            console.log('Restart required for pairing, cleaning up...');
-            this.cleanupSession(sessionId);
+            console.log('Restart required for pairing - this is normal after successful pairing');
+            // Don't clean up immediately, let it restart naturally
+            setTimeout(() => {
+              this.emit('session_connected', sessionId, {
+                jid: sock.user?.id,
+                name: sock.user?.name,
+                phoneNumber: cleanPhone,
+              });
+              this.cleanupSession(sessionId);
+            }, 1000);
           }
         }
       });

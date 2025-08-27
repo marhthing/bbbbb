@@ -41,6 +41,7 @@ interface CodePairingProps {
 export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep }: CodePairingProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [pairingCode, setPairingCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
   const { toast } = useToast();
 
@@ -89,6 +90,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     onMessage: (message) => {
       switch (message.type) {
         case 'pairing_code_ready':
+          setGeneratedCode(message.code);
           setShowCodeInput(true);
           break;
         case 'session_connected':
@@ -174,10 +176,10 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
               </div>
 
               <div className="max-w-sm mx-auto">
-                <Label className="block text-sm font-medium mb-2">Your pairing code is: MATDEV01</Label>
+                <Label className="block text-sm font-medium mb-2">Your pairing code is: {generatedCode}</Label>
                 <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
                   <div className="text-3xl font-mono font-bold text-green-700 tracking-wider">
-                    MATDEV01
+                    {generatedCode || "Loading..."}
                   </div>
                   <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp</p>
                 </div>
