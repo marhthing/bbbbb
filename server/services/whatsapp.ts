@@ -148,25 +148,53 @@ export class WhatsAppService extends EventEmitter {
           console.log('Connection closed with status:', statusCode);
 
           // Handle the forced disconnect after QR scan (restartRequired)
-          if (statusCode === DisconnectReason.restartRequired) {
-            console.log('Restart required after QR scan - this is normal, restarting...');
-            callback({
-              type: 'restart_required',
-              sessionId,
-              timestamp: new Date().toISOString(),
-            });
-
-            // Clean up current session and restart
-            this.cleanupSession(sessionId);
-
-            // Restart the pairing process after a short delay
-            setTimeout(() => {
-              this.startQRPairing(sessionId, callback).catch(error => {
-                console.error('Error restarting QR pairing:', error);
-                this.emit('session_failed', sessionId, 'Failed to restart after QR scan');
+          if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+            console.log('Restart required after QR scan - this is normal, starting authenticated session...');
+            
+            // Check if we have valid credentials from the QR scan
+            const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me;
+            
+            if (hasValidCreds) {
+              console.log('✅ QR scan successful! Starting authenticated session...');
+              
+              callback({
+                type: 'qr_scan_successful',
+                sessionId,
+                timestamp: new Date().toISOString(),
               });
-            }, 1000);
-            return;
+
+              // Clean up current session
+              this.cleanupSession(sessionId);
+
+              // Start authenticated session instead of restarting QR pairing
+              setTimeout(async () => {
+                try {
+                  await this.startAuthenticatedSession(sessionId, '', callback);
+                } catch (error) {
+                  console.error('Error starting authenticated session after QR:', error);
+                  this.emit('session_failed', sessionId, 'Failed to establish authenticated connection after QR scan');
+                }
+              }, 2000);
+              return;
+            } else {
+              console.log('Restart required but no valid credentials - restarting QR pairing...');
+              callback({
+                type: 'restart_required',
+                sessionId,
+                timestamp: new Date().toISOString(),
+              });
+
+              // Clean up current session and restart QR pairing
+              this.cleanupSession(sessionId);
+
+              setTimeout(() => {
+                this.startQRPairing(sessionId, callback).catch(error => {
+                  console.error('Error restarting QR pairing:', error);
+                  this.emit('session_failed', sessionId, 'Failed to restart after QR scan');
+                });
+              }, 1000);
+              return;
+            }
           }
 
           // Handle logout
@@ -181,7 +209,24 @@ export class WhatsAppService extends EventEmitter {
         }
       });
 
-      sock.ev.on('creds.update', saveCreds);
+      sock.ev.on('creds.update', (creds) => {
+        saveCreds(creds);
+        
+        // Monitor for successful QR pairing
+        if (creds.registered || creds.me) {
+          console.log('✅ QR Pairing successful! Credentials updated:', {
+            registered: creds.registered,
+            hasMe: !!creds.me,
+            meId: creds.me?.id
+          });
+
+          callback({
+            type: 'qr_pairing_successful',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      });
 
       return { success: true, message: 'QR pairing started' };
     } catch (error) {
@@ -713,38 +758,77 @@ Your WhatsApp is now connected to MATDEV's professional messaging platform. All 
   async startAuthenticatedSession(sessionId: string, phoneNumber: string, callback: (data: any) => void) {
     console.log('Starting authenticated session for:', sessionId);
 
-    const sessionPath = path.join(this.sessionsDir, sessionId);
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version, isLatest } = await fetchLatestBaileysVersion();
+    try {
+      const sessionPath = path.join(this.sessionsDir, sessionId);
+      const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+      const { version, isLatest } = await fetchLatestBaileysVersion();
 
-    const sock = makeWASocket({
-      version,
-      auth: state,
-      printQRInTerminal: false,
-      generateHighQualityLinkPreview: true,
-    });
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        printQRInTerminal: false,
+        generateHighQualityLinkPreview: true,
+        browser: ['Ubuntu', 'Chrome', `${Math.floor(Math.random() * 1000)}.0`],
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        connectTimeoutMs: 30_000,
+      });
 
-    this.activeSessions.set(sessionId, sock);
+      this.activeSessions.set(sessionId, sock);
 
-    sock.ev.on('connection.update', (update: any) => {
-      const { connection, lastDisconnect } = update;
-      console.log('Authenticated session update:', { connection, hasUser: !!sock.user });
+      sock.ev.on('connection.update', (update: any) => {
+        const { connection, lastDisconnect } = update;
+        console.log('Authenticated session update:', { connection, hasUser: !!sock.user });
 
-      if (connection === 'open' && sock.user) {
-        console.log('✅ Authenticated session established successfully!');
-        console.log('User:', sock.user.name, 'JID:', sock.user.id);
+        if (connection === 'connecting') {
+          callback({
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          });
+        }
 
-        this.emit('session_connected', sessionId, {
-          jid: sock.user.id,
-          name: sock.user.name,
-          phoneNumber: phoneNumber,
-        });
+        if (connection === 'open' && sock.user) {
+          console.log('✅ Authenticated session established successfully!');
+          console.log('User:', sock.user.name, 'JID:', sock.user.id);
 
-        this.sendSessionConfirmation(sock, sessionId);
-      }
-    });
+          callback({
+            type: 'session_connected',
+            sessionId,
+            phoneNumber: phoneNumber || sock.user.id?.split(':')[0] || '',
+            name: sock.user.name,
+            jid: sock.user.id,
+            timestamp: new Date().toISOString(),
+          });
 
-    sock.ev.on('creds.update', saveCreds);
+          this.emit('session_connected', sessionId, {
+            jid: sock.user.id,
+            name: sock.user.name,
+            phoneNumber: phoneNumber || sock.user.id?.split(':')[0] || '',
+          });
+
+          this.sendSessionConfirmation(sock, sessionId);
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          console.log('Authenticated session closed with status:', statusCode);
+
+          if (statusCode === DisconnectReason.loggedOut) {
+            this.cleanupSession(sessionId);
+            this.emit('session_failed', sessionId, 'Session logged out');
+          } else {
+            console.log('Authenticated session disconnected, cleaning up');
+            this.cleanupSession(sessionId);
+          }
+        }
+      });
+
+      sock.ev.on('creds.update', saveCreds);
+    } catch (error) {
+      console.error('Error in authenticated session:', error);
+      this.emit('session_failed', sessionId, 'Failed to start authenticated session');
+    }
   }
 
   async cleanup() {
