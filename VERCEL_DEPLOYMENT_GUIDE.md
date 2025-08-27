@@ -43,30 +43,60 @@ CREATE INDEX idx_whatsapp_sessions_phone ON whatsapp_sessions(phone_number);
 CREATE INDEX idx_whatsapp_sessions_status ON whatsapp_sessions(status);
 ```
 
-### 4. File Structure
+### 4. Complete File Structure
 
 Your project should have this structure:
 ```
 ├── api/
-│   └── index.js              # Main serverless function
+│   └── index.js              # Serverless API functions
+├── client/                   # React Frontend
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ui/           # Shadcn components
+│   │   │   ├── code-pairing.tsx
+│   │   │   ├── error-state.tsx
+│   │   │   ├── id-selection.tsx
+│   │   │   ├── pairing-method.tsx
+│   │   │   ├── qr-pairing.tsx
+│   │   │   └── success-state.tsx
+│   │   ├── hooks/
+│   │   │   ├── use-mobile.tsx
+│   │   │   ├── use-toast.ts
+│   │   │   └── use-websocket.tsx
+│   │   ├── lib/
+│   │   │   ├── queryClient.ts
+│   │   │   └── utils.ts
+│   │   ├── pages/
+│   │   │   ├── home.tsx
+│   │   │   └── not-found.tsx
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
+│   ├── index.html
+│   ├── package.json          # Frontend dependencies
+│   ├── vite.config.ts        # Vite build configuration
+│   ├── tailwind.config.ts    # Tailwind CSS config
+│   └── tsconfig.json         # TypeScript config
 ├── lib/
 │   ├── db.js                 # Database connection
 │   ├── storage.js            # Database operations
 │   └── whatsapp.js           # WhatsApp service (uses /tmp)
 ├── shared/
 │   └── schema.js             # Database schema
-├── vercel.json               # Vercel configuration
-└── package.json              # Dependencies
+└── vercel.json               # Vercel configuration
 ```
 
 ### 5. Deploy to Vercel
 
 **Option A: GitHub Integration (Recommended)**
-1. Push your code to a GitHub repository
+1. Push your **entire project** to a GitHub repository
 2. Go to [vercel.com](https://vercel.com)
 3. Click "New Project"
 4. Import your GitHub repository
-5. Vercel will automatically detect and deploy
+5. Vercel will automatically:
+   - Build your React frontend from `client/` folder
+   - Deploy your API functions from `api/` folder
+   - Serve everything from one domain
 
 **Option B: Vercel CLI**
 ```bash
@@ -75,9 +105,22 @@ vercel login
 vercel --prod
 ```
 
-### 6. API Endpoints
+**What Happens During Deployment:**
+- Frontend: Builds your React app and serves it as static files
+- Backend: Deploys your API functions as serverless endpoints
+- Routing: Frontend serves at `/`, API serves at `/api/*`
 
-After deployment, your endpoints will be:
+### 6. Your Complete App
+
+After deployment, you'll have:
+
+**Frontend (React App):**
+- `https://your-app.vercel.app/` - Your WhatsApp session manager UI
+- Automatic responsive design with Tailwind CSS
+- Real-time session status updates
+- QR code display and 8-digit pairing code interface
+
+**Backend API Endpoints:**
 ```
 POST /api/sessions/generate-id          # Generate session ID
 POST /api/sessions                      # Create session
