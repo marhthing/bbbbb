@@ -125,8 +125,17 @@ export class WhatsAppService extends EventEmitter {
         throw new Error('Session already active');
       }
 
-      // Clean phone number (remove spaces, dashes, etc.)
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
+      // Clean phone number (remove spaces, dashes, etc.) and ensure proper format
+      let cleanPhone = phoneNumber.replace(/\D/g, '');
+      // Remove leading 0 if present and country code isn't included
+      if (cleanPhone.startsWith('0') && cleanPhone.length > 10) {
+        cleanPhone = cleanPhone.substring(1);
+      }
+      // Ensure UK numbers have proper country code
+      if (cleanPhone.startsWith('7') && cleanPhone.length === 11) {
+        cleanPhone = '44' + cleanPhone;
+      }
+      console.log('Cleaned phone number:', cleanPhone);
       
       const sessionPath = path.join(this.sessionsDir, sessionId);
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
@@ -203,10 +212,16 @@ export class WhatsAppService extends EventEmitter {
         
         try {
           console.log('Requesting pairing code for phone:', cleanPhone);
+          
+          // Wait a moment for connection to stabilize
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           const code = await sock.requestPairingCode(cleanPhone);
           pairingCodeRequested = true;
           
-          console.log('Pairing code generated:', code);
+          console.log('Pairing code generated successfully:', code);
+          console.log('Phone number used:', cleanPhone);
+          
           callback({
             type: 'pairing_code_ready',
             sessionId,
@@ -214,6 +229,17 @@ export class WhatsAppService extends EventEmitter {
             code: code,
             timestamp: new Date().toISOString(),
           });
+          
+          // Log instructions for user
+          console.log('='.repeat(50));
+          console.log('PAIRING CODE INSTRUCTIONS:');
+          console.log('1. Open WhatsApp on your phone');
+          console.log('2. Go to Settings → Linked Devices');
+          console.log('3. Tap "Link a Device"');
+          console.log('4. Choose "Link with phone number instead"');
+          console.log(`5. Enter this code: ${code}`);
+          console.log('='.repeat(50));
+          
         } catch (error) {
           console.error('Error generating pairing code:', error);
           throw error;
