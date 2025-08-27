@@ -4,6 +4,9 @@ import { storage } from '../storage';
 import path from 'path';
 import fs from 'fs';
 
+// Configure Node.js to handle SSL certificates properly in Replit environment
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 export class WhatsAppService extends EventEmitter {
   private activeSessions = new Map<string, any>();
   private sessionsDir = path.join(process.cwd(), 'sessions');
