@@ -62,17 +62,17 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-whatsapp rounded-lg flex items-center justify-center">
-                <i className="fab fa-whatsapp text-white text-xl"></i>
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <i className="fab fa-windows text-white text-xl"></i>
               </div>
               <div>
-                <h1 className="text-xl font-semibold">WhatsApp Linker</h1>
-                <p className="text-sm text-muted-foreground">Secure Session Management</p>
+                <h1 className="text-xl font-semibold">MATDEV WhatsApp Desktop</h1>
+                <p className="text-sm text-muted-foreground">Professional Session Management</p>
               </div>
             </div>
             <div className="text-sm text-muted-foreground">
-              <i className="fas fa-shield-alt mr-1"></i>
-              Secure Connection
+              <i className="fab fa-windows mr-1"></i>
+              Windows Desktop
             </div>
           </div>
         </div>
@@ -155,7 +155,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-4 text-xs text-muted-foreground">
-            Powered by Baileys • Built for high-performance WhatsApp linking
+            MATDEV © 2025 • Professional WhatsApp Desktop Integration
           </div>
         </div>
       </footer>

@@ -154,7 +154,7 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Mac OS', 'Chrome', '121.0.6167.159'], // Critical for pairing code to work
+        browser: ['Windows', 'Desktop', '10.0'], // Show as Windows desktop WhatsApp
         markOnlineOnConnect: false,
         syncFullHistory: false,
         defaultQueryTimeoutMs: 120_000,
@@ -435,21 +435,22 @@ export class WhatsAppService extends EventEmitter {
         return;
       }
 
-      // Template message - you can edit this later
-      const confirmationMessage = `🔗 *WhatsApp Session Linked Successfully!*
+      // MATDEV branded confirmation message
+      const confirmationMessage = `🖥️ *MATDEV WhatsApp Desktop Connected!*
 
-✅ Your session has been created and saved securely.
+✅ Your session has been linked successfully to MATDEV platform.
 
 📋 *Session Details:*
 • Session ID: \`${sessionId}\`
+• Platform: Windows Desktop
 • Connected: ${new Date().toLocaleString()}
-• Status: Active
+• Status: Active & Secure
 
-🤖 *What's Next?*
-Your bot can now use this session to send and receive messages. The session is safely stored and ready for use.
+🚀 *MATDEV Integration Ready*
+Your WhatsApp is now connected to MATDEV's professional messaging platform. All communications are encrypted and secure.
 
 ---
-*This is an automated confirmation message.*`;
+*MATDEV © 2025 - Professional WhatsApp Desktop Integration*`;
 
       // Send message to user's own number
       await sock.sendMessage(userJid, { text: confirmationMessage });
