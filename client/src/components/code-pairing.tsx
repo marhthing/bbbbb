@@ -174,22 +174,21 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
               </div>
 
               <div className="max-w-sm mx-auto">
-                <Label className="block text-sm font-medium mb-2">Enter 8-digit code</Label>
-                <Input
-                  type="text"
-                  maxLength={8}
-                  placeholder="12345678"
-                  value={pairingCode}
-                  onChange={handlePairingCodeChange}
-                  className="text-center text-2xl font-mono tracking-wider"
-                  data-testid="input-pairing-code"
-                />
-                <p className="text-xs text-muted-foreground mt-2">Enter the code without spaces or dashes</p>
+                <Label className="block text-sm font-medium mb-2">Your pairing code is: MATDEV01</Label>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+                  <div className="text-3xl font-mono font-bold text-green-700 tracking-wider">
+                    MATDEV01
+                  </div>
+                  <p className="text-sm text-green-600 mt-2">Enter this code in your WhatsApp</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Go to WhatsApp Settings → Linked Devices → Link a Device → Enter code manually
+                </p>
               </div>
 
               <Button
                 onClick={handleSubmitCode}
-                disabled={submitCodeMutation.isPending || pairingCode.length !== 8}
+                disabled={submitCodeMutation.isPending}
                 className="bg-whatsapp hover:bg-whatsapp/90"
                 data-testid="button-submit-code"
               >

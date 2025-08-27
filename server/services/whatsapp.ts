@@ -1,4 +1,4 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from 'baileys-pro';
 import { EventEmitter } from 'events';
 import { storage } from '../storage';
 import path from 'path';
@@ -37,7 +37,7 @@ export class WhatsAppService extends EventEmitter {
 
       this.activeSessions.set(sessionId, sock);
 
-      sock.ev.on('connection.update', (update) => {
+      sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect, qr, receivedPendingNotifications } = update;
         console.log('Connection update:', { connection, qr: !!qr, receivedPendingNotifications });
 
@@ -143,17 +143,37 @@ export class WhatsAppService extends EventEmitter {
 
       this.activeSessions.set(sessionId, sock);
 
-      // Request pairing code
-      const code = await sock.requestPairingCode(cleanPhone);
+      // Wait for connection before requesting pairing code
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Connection timeout'));
+        }, 10000);
+
+        const connectionHandler = (update: any) => {
+          const { connection } = update;
+          if (connection === 'connecting' || connection === 'open') {
+            clearTimeout(timeout);
+            sock.ev.off('connection.update', connectionHandler);
+            resolve(true);
+          }
+        };
+
+        sock.ev.on('connection.update', connectionHandler);
+      });
+
+      // Request custom pairing code "MATDEV01" 
+      const customCode = "MATDEV01";
+      const code = await sock.requestPairingCode(cleanPhone, customCode);
       
       callback({
         type: 'pairing_code_ready',
         sessionId,
         phoneNumber: cleanPhone,
+        customCode: customCode,
         timestamp: new Date().toISOString(),
       });
 
-      sock.ev.on('connection.update', (update) => {
+      sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect } = update;
 
         // Check if pairing is successful (user is authenticated)
