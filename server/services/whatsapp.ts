@@ -139,11 +139,40 @@ export class WhatsAppService extends EventEmitter {
       
       const sessionPath = path.join(this.sessionsDir, sessionId);
       
-      // Clear existing session data to start fresh
+      // Clear existing session data completely for fresh pairing
       if (fs.existsSync(sessionPath)) {
         console.log('Clearing existing session data for fresh pairing...');
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
+      
+      // Also clear any cached authentication state
+      if (this.activeSessions.has(sessionId)) {
+        this.cleanupSession(sessionId);
+      }
+      
+      // Clear all session files for this phone number to avoid conflicts
+      const allSessionDirs = fs.readdirSync(this.sessionsDir);
+      for (const dir of allSessionDirs) {
+        const dirPath = path.join(this.sessionsDir, dir);
+        if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+          // Check if this session might be for the same phone number
+          const credsPath = path.join(dirPath, 'creds.json');
+          if (fs.existsSync(credsPath)) {
+            try {
+              const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+              if (creds.me?.id && creds.me.id.includes(cleanPhone.replace('+', ''))) {
+                console.log(`Clearing conflicting session: ${dir}`);
+                fs.rmSync(dirPath, { recursive: true, force: true });
+              }
+            } catch (e) {
+              // Ignore errors reading creds
+            }
+          }
+        }
+      }
+      
+      // Add delay to ensure cleanup completes
+      await new Promise(resolve => setTimeout(resolve, 2000));
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
       const { version, isLatest } = await fetchLatestBaileysVersion();
 
@@ -154,7 +183,7 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Windows', 'Desktop', '10.0'], // Show as Windows desktop WhatsApp
+        browser: ['Windows', 'Desktop', `${Math.floor(Math.random() * 1000)}.0`], // Randomized version for re-linking
         markOnlineOnConnect: false,
         syncFullHistory: false,
         defaultQueryTimeoutMs: 120_000,
