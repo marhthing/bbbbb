@@ -80,6 +80,16 @@ export class WhatsAppService extends EventEmitter {
       }
 
       const sessionPath = path.join(this.sessionsDir, sessionId);
+
+      // Clear existing session data completely for fresh QR pairing
+      if (fs.existsSync(sessionPath)) {
+        console.log('Clearing existing session data for fresh QR pairing...');
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+      }
+
+      // Add delay to ensure cleanup completes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
       const { version, isLatest } = await fetchLatestBaileysVersion();
 
@@ -90,6 +100,11 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
+        browser: ['Ubuntu', 'Chrome', `${Math.floor(Math.random() * 1000)}.0`], // Randomized for fresh sessions
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        connectTimeoutMs: 30_000,
+        qrTimeout: 60_000,
       });
 
       this.activeSessions.set(sessionId, sock);
