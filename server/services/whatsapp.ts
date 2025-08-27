@@ -265,7 +265,13 @@ export class WhatsAppService extends EventEmitter {
         throw new Error('Invalid phone number format. Please check country code and number.');
       }
 
-      console.log('Original phone:', phoneNumber, '-> Cleaned phone:', cleanPhone);
+      // Ensure the phone number is in the exact format WhatsApp expects for pairing
+      // WhatsApp pairing codes are very strict about format
+      if (!cleanPhone.match(/^[1-9]\d{6,14}$/)) {
+        throw new Error('Invalid phone number format for pairing. Please ensure the number is correct.');
+      }
+
+      console.log('Original phone:', phoneNumber, '-> Cleaned phone for pairing:', cleanPhone);
 
       const sessionPath = path.join(this.sessionsDir, sessionId);
 
@@ -280,26 +286,8 @@ export class WhatsAppService extends EventEmitter {
         this.cleanupSession(sessionId);
       }
 
-      // Clear all session files for this phone number to avoid conflicts
-      const allSessionDirs = fs.readdirSync(this.sessionsDir);
-      for (const dir of allSessionDirs) {
-        const dirPath = path.join(this.sessionsDir, dir);
-        if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
-          // Check if this session might be for the same phone number
-          const credsPath = path.join(dirPath, 'creds.json');
-          if (fs.existsSync(credsPath)) {
-            try {
-              const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-              if (creds.me?.id && creds.me.id.includes(cleanPhone.replace('+', ''))) {
-                console.log(`Clearing conflicting session: ${dir}`);
-                fs.rmSync(dirPath, { recursive: true, force: true });
-              }
-            } catch (e) {
-              // Ignore errors reading creds
-            }
-          }
-        }
-      }
+      // Only clear the current session directory for fresh pairing
+      console.log('Preparing fresh session for pairing code request');
 
       // Add delay to ensure cleanup completes
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -313,16 +301,19 @@ export class WhatsAppService extends EventEmitter {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Windows', 'Desktop', `${Math.floor(Math.random() * 1000)}.0`], // Randomized version for re-linking
+        browser: ['Chrome (Linux)', 'Chrome', '120.0.0.0'], // Use stable browser info for pairing
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        defaultQueryTimeoutMs: 60_000, // Reduced for faster failure detection
-        keepAliveIntervalMs: 30_000, // More frequent keep-alive
-        connectTimeoutMs: 30_000, // Faster connection timeout
-        qrTimeout: 60_000,
-        retryRequestDelayMs: 3_000, // Standard retry delay
-        maxMsgRetryCount: 3,
-        emitOwnEvents: false
+        defaultQueryTimeoutMs: 90_000, // Longer timeout for pairing
+        keepAliveIntervalMs: 10_000, // More frequent keep-alive for pairing
+        connectTimeoutMs: 45_000, // Longer connection timeout for pairing
+        qrTimeout: 120_000, // 2 minutes for pairing code
+        retryRequestDelayMs: 2_000,
+        maxMsgRetryCount: 5, // More retries for pairing
+        emitOwnEvents: false,
+        shouldIgnoreJid: () => false, // Don't ignore any JIDs during pairing
+        shouldSyncHistoryMessage: () => false, // Don't sync history during pairing
+        getMessage: async () => undefined // Simplified message handling
       });
 
       this.activeSessions.set(sessionId, sock);
@@ -464,11 +455,15 @@ export class WhatsAppService extends EventEmitter {
         try {
           console.log('Requesting pairing code for phone:', cleanPhone);
 
-          // Wait longer for connection to stabilize
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Wait for connection to be more stable before requesting code
+          await new Promise(resolve => setTimeout(resolve, 5000));
 
-          // For WhatsApp pairing, we need to ensure the number is in the exact format WhatsApp expects
-          console.log('Requesting pairing code for formatted phone:', cleanPhone);
+          // Validate connection state before requesting pairing code
+          if (sock.readyState !== sock.OPEN && sock.readyState !== sock.CONNECTING) {
+            throw new Error('Socket not in valid state for pairing code request');
+          }
+
+          console.log('Socket ready. Requesting pairing code for:', cleanPhone);
 
           const code = await sock.requestPairingCode(cleanPhone);
           pairingCodeRequested = true;
@@ -564,14 +559,14 @@ export class WhatsAppService extends EventEmitter {
             }
           });
 
-          // Set a timeout for pairing code validation
+          // Set a longer timeout for pairing code validation - WhatsApp sometimes takes longer
           setTimeout(() => {
             if (!sock.authState?.creds?.registered && !sock.user) {
-              console.log('Pairing code timeout - no successful authentication within 2 minutes');
-              this.emit('session_failed', sessionId, 'Pairing code expired or was not entered correctly. Please try again.');
+              console.log('Pairing code timeout - no successful authentication within 3 minutes');
+              this.emit('session_failed', sessionId, 'Pairing code expired. Please generate a new code and try again.');
               this.cleanupSession(sessionId);
             }
-          }, 120000); // 2 minutes timeout
+          }, 180000); // 3 minutes timeout
 
         } catch (error) {
           console.error('❌ Error generating pairing code:', error.message);
@@ -602,8 +597,8 @@ export class WhatsAppService extends EventEmitter {
         }
       };
 
-      // Start checking after initial connection with longer delay
-      setTimeout(checkAndRequestCode, 5000);
+      // Start checking after initial connection - reduced delay for faster code generation
+      setTimeout(checkAndRequestCode, 3000);
 
       sock.ev.on('creds.update', saveCreds);
 
