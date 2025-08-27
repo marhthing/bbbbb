@@ -1,9 +1,11 @@
+
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +40,42 @@ interface CodePairingProps {
   currentStep: number;
 }
 
+// Country codes with their flags and codes
+const countryCodes = [
+  { code: "44", country: "United Kingdom", flag: "🇬🇧" },
+  { code: "1", country: "United States", flag: "🇺🇸" },
+  { code: "1", country: "Canada", flag: "🇨🇦" },
+  { code: "234", country: "Nigeria", flag: "🇳🇬" },
+  { code: "91", country: "India", flag: "🇮🇳" },
+  { code: "86", country: "China", flag: "🇨🇳" },
+  { code: "49", country: "Germany", flag: "🇩🇪" },
+  { code: "33", country: "France", flag: "🇫🇷" },
+  { code: "39", country: "Italy", flag: "🇮🇹" },
+  { code: "34", country: "Spain", flag: "🇪🇸" },
+  { code: "81", country: "Japan", flag: "🇯🇵" },
+  { code: "82", country: "South Korea", flag: "🇰🇷" },
+  { code: "61", country: "Australia", flag: "🇦🇺" },
+  { code: "55", country: "Brazil", flag: "🇧🇷" },
+  { code: "52", country: "Mexico", flag: "🇲🇽" },
+  { code: "7", country: "Russia", flag: "🇷🇺" },
+  { code: "27", country: "South Africa", flag: "🇿🇦" },
+  { code: "20", country: "Egypt", flag: "🇪🇬" },
+  { code: "90", country: "Turkey", flag: "🇹🇷" },
+  { code: "966", country: "Saudi Arabia", flag: "🇸🇦" },
+  { code: "971", country: "UAE", flag: "🇦🇪" },
+  { code: "65", country: "Singapore", flag: "🇸🇬" },
+  { code: "60", country: "Malaysia", flag: "🇲🇾" },
+  { code: "66", country: "Thailand", flag: "🇹🇭" },
+  { code: "84", country: "Vietnam", flag: "🇻🇳" },
+  { code: "62", country: "Indonesia", flag: "🇮🇩" },
+  { code: "63", country: "Philippines", flag: "🇵🇭" },
+  { code: "92", country: "Pakistan", flag: "🇵🇰" },
+  { code: "880", country: "Bangladesh", flag: "🇧🇩" },
+  { code: "94", country: "Sri Lanka", flag: "🇱🇰" },
+];
+
 export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep }: CodePairingProps) {
+  const [countryCode, setCountryCode] = useState("44"); // Default to UK
   const [phoneNumber, setPhoneNumber] = useState("");
   
   const [generatedCode, setGeneratedCode] = useState("");
@@ -47,11 +84,28 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
 
   const requestCodeMutation = useMutation({
     mutationFn: async () => {
+      if (!countryCode.trim()) {
+        throw new Error("Country code is required");
+      }
       if (!phoneNumber.trim()) {
         throw new Error("Phone number is required");
       }
+
+      // Clean the phone number: remove spaces, dashes, and leading zero if present
+      let cleanPhone = phoneNumber.replace(/\D/g, '');
+      
+      // Strip leading zero if present
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = cleanPhone.substring(1);
+      }
+
+      // Combine country code with cleaned phone number
+      const fullPhoneNumber = countryCode + cleanPhone;
+
+      console.log('Sending request with:', { countryCode, phoneNumber, cleanPhone, fullPhoneNumber });
+
       const response = await apiRequest("POST", `/api/sessions/${sessionId}/request-code`, {
-        phoneNumber: phoneNumber.trim(),
+        phoneNumber: fullPhoneNumber,
       });
       return response.json();
     },
@@ -66,8 +120,6 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
       onError(error instanceof Error ? error.message : "Failed to request pairing code");
     },
   });
-
-  
 
   useWebSocket(sessionId, {
     onMessage: (message) => {
@@ -106,7 +158,9 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     requestCodeMutation.mutate();
   };
 
-  
+  const getSelectedCountry = () => {
+    return countryCodes.find(c => c.code === countryCode) || countryCodes[0];
+  };
 
   return (
     <Card className="mb-6" data-testid="code-pairing-card">
@@ -126,24 +180,54 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
           <div className="text-center">
             <div className="mb-4">
               <Label className="block text-sm font-medium mb-2">Phone Number</Label>
-              <div className="max-w-sm mx-auto">
-                <Input
-                  type="tel"
-                  placeholder="+1 234 567 8900"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="text-center"
-                  disabled={showCodeInput}
-                  data-testid="input-phone-number"
-                />
+              <div className="max-w-md mx-auto">
+                <div className="flex gap-2">
+                  <div className="w-32">
+                    <Select value={countryCode} onValueChange={setCountryCode} disabled={showCodeInput}>
+                      <SelectTrigger data-testid="select-country-code">
+                        <SelectValue>
+                          <span className="flex items-center gap-2">
+                            {getSelectedCountry().flag} +{countryCode}
+                          </span>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countryCodes.map((country) => (
+                          <SelectItem key={`${country.code}-${country.country}`} value={country.code}>
+                            <span className="flex items-center gap-2">
+                              {country.flag} +{country.code} {country.country}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="tel"
+                      placeholder={countryCode === "44" ? "7xxxxxxxxx" : "xxxxxxxxxx"}
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      disabled={showCodeInput}
+                      data-testid="input-phone-number"
+                    />
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Include country code</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Enter your phone number without country code or leading zero
+              </p>
+              {countryCode && phoneNumber && (
+                <p className="text-xs text-green-600 mt-1">
+                  Full number: +{countryCode}{phoneNumber.replace(/\D/g, '').replace(/^0/, '')}
+                </p>
+              )}
             </div>
 
             {!showCodeInput && (
               <Button
                 onClick={handleRequestCode}
-                disabled={requestCodeMutation.isPending || !phoneNumber.trim()}
+                disabled={requestCodeMutation.isPending || !countryCode.trim() || !phoneNumber.trim()}
                 data-testid="button-request-code"
               >
                 <i className="fas fa-mobile-alt mr-2"></i>
@@ -179,7 +263,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
                     <li><strong>Wait for WhatsApp to process</strong> (don't close the app)</li>
                   </ol>
                   <p className="mt-2 font-semibold text-red-700">
-                    ⚠️ If code shows "invalid", the phone number format may be wrong. Try again with proper country code.
+                    ⚠️ If code shows "invalid", try refreshing and generating a new code.
                   </p>
                 </div>
               </div>

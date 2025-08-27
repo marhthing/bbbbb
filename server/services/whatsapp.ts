@@ -188,36 +188,17 @@ export class WhatsAppService extends EventEmitter {
         throw new Error('Session already active');
       }
 
-      // Clean phone number (remove spaces, dashes, etc.) and ensure proper format
+      // Clean phone number (remove spaces, dashes, etc.)
       let cleanPhone = phoneNumber.replace(/\D/g, '');
 
-      // Remove leading + or 00 if present
-      if (cleanPhone.startsWith('00')) {
-        cleanPhone = cleanPhone.substring(2);
+      // Remove leading + if present
+      if (cleanPhone.startsWith('+')) {
+        cleanPhone = cleanPhone.substring(1);
       }
 
-      // Ensure we have the correct format for WhatsApp
-      // WhatsApp expects numbers WITHOUT the + prefix for pairing codes
-      if (cleanPhone.startsWith('44') && cleanPhone.length === 13) {
-        // UK international format (44xxxxxxxxxx) - keep as is
-      } else if (cleanPhone.startsWith('234') && cleanPhone.length === 13) {
-        // Nigerian international format (234xxxxxxxxxx) - keep as is  
-      } else if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
-        // UK local format (0xxxxxxxxxx) - convert to international
-        cleanPhone = '44' + cleanPhone.substring(1);
-      } else if (cleanPhone.startsWith('7') && cleanPhone.length === 10) {
-        // UK mobile without country code - add 44
-        cleanPhone = '44' + cleanPhone;
-      } else if (cleanPhone.startsWith('8') && cleanPhone.length === 10) {
-        // Nigerian mobile without country code - add 234
-        cleanPhone = '234' + cleanPhone;
-      } else if (cleanPhone.startsWith('1') && cleanPhone.length === 11) {
-        // US/Canada format - keep as is
-      }
-
-      // Validate the phone number length
+      // Validate the phone number length (should already be in correct format from frontend)
       if (cleanPhone.length < 10 || cleanPhone.length > 15) {
-        throw new Error('Invalid phone number format. Please include country code.');
+        throw new Error('Invalid phone number format. Please check country code and number.');
       }
 
       console.log('Original phone:', phoneNumber, '-> Cleaned phone:', cleanPhone);
