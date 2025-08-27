@@ -34,7 +34,7 @@ export class WhatsAppService extends EventEmitter {
   // Performance monitoring and cleanup
   private cleanupInactiveSessions() {
     const now = Date.now();
-    for (const [sessionId, sock] of this.activeSessions.entries()) {
+    for (const [sessionId, sock] of Array.from(this.activeSessions.entries())) {
       try {
         if (!sock || sock.readyState === sock.CLOSED || sock.readyState === sock.CLOSING) {
           console.log(`Cleaning up inactive session: ${sessionId}`);
@@ -375,14 +375,30 @@ export class WhatsAppService extends EventEmitter {
           
           if (!pairingCodeGenerated) {
             // Generate pairing code immediately when connection opens
-            this.generatePairingCode(sock, cleanPhone, sessionId, callback)
-              .then(() => {
+            setTimeout(async () => {
+              try {
+                console.log('🔢 Generating pairing code for:', cleanPhone);
+                const code = await sock.requestPairingCode(cleanPhone);
+                console.log('✅ Pairing code generated:', code);
+                
                 pairingCodeGenerated = true;
-              })
-              .catch(error => {
+                
+                callback({
+                  type: 'pairing_code_ready',
+                  sessionId,
+                  phoneNumber: cleanPhone,
+                  code: code,
+                  timestamp: new Date().toISOString(),
+                });
+
+                console.log('📋 PAIRING CODE:', code);
+                console.log('Enter this code in WhatsApp: Settings → Linked Devices → Link with phone number');
+              } catch (error) {
                 console.error('Failed to generate pairing code:', error);
-                this.emit('session_failed', sessionId, 'Failed to generate pairing code: ' + error.message);
-              });
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                this.emit('session_failed', sessionId, 'Failed to generate pairing code: ' + errorMsg);
+              }
+            }, 1000);
           }
 
           // If we already have user info (authenticated), proceed directly
@@ -403,8 +419,6 @@ export class WhatsAppService extends EventEmitter {
               name: sock.user.name,
               phoneNumber: cleanPhone,
             });
-            
-            this.sendSessionConfirmation(sock, sessionId);
           }
         }
 
@@ -501,7 +515,8 @@ export class WhatsAppService extends EventEmitter {
 
     } catch (error) {
       console.error('❌ Failed to generate pairing code:', error);
-      throw new Error('Failed to generate pairing code: ' + error.message);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new Error('Failed to generate pairing code: ' + errorMsg);
     }
   }
 
