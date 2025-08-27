@@ -40,7 +40,7 @@ interface CodePairingProps {
 
 export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep }: CodePairingProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [pairingCode, setPairingCode] = useState("");
+  
   const [generatedCode, setGeneratedCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
   const { toast } = useToast();
@@ -67,24 +67,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     },
   });
 
-  const submitCodeMutation = useMutation({
-    mutationFn: async () => {
-      if (!pairingCode.trim() || pairingCode.length !== 8) {
-        throw new Error("Please enter a valid 8-digit code");
-      }
-      const response = await apiRequest("POST", `/api/sessions/${sessionId}/submit-code`, {
-        code: pairingCode.trim(),
-      });
-      return response.json();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit pairing code",
-        variant: "destructive",
-      });
-    },
-  });
+  
 
   useWebSocket(sessionId, {
     onMessage: (message) => {
@@ -117,14 +100,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     requestCodeMutation.mutate();
   };
 
-  const handleSubmitCode = () => {
-    submitCodeMutation.mutate();
-  };
-
-  const handlePairingCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 8);
-    setPairingCode(value);
-  };
+  
 
   return (
     <Card className="mb-6" data-testid="code-pairing-card">
@@ -198,15 +174,14 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
                 </div>
               </div>
 
-              <Button
-                onClick={handleSubmitCode}
-                disabled={submitCodeMutation.isPending}
-                className="bg-whatsapp hover:bg-whatsapp/90"
-                data-testid="button-submit-code"
-              >
-                <i className="fab fa-whatsapp mr-2"></i>
-                {submitCodeMutation.isPending ? "Connecting..." : "Connect WhatsApp"}
-              </Button>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Waiting for you to enter the code in WhatsApp...
+                </p>
+                <div className="animate-pulse mt-2">
+                  <i className="fas fa-spinner fa-spin text-2xl text-primary"></i>
+                </div>
+              </div>
             </div>
           )}
 

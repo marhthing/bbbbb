@@ -18,10 +18,10 @@ export class WhatsAppService extends EventEmitter {
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
     }
-    
+
     // Set higher event listener limit for performance
     this.setMaxListeners(200);
-    
+
     // Cleanup inactive sessions every 5 minutes
     setInterval(() => {
       this.cleanupInactiveSessions();
@@ -48,16 +48,16 @@ export class WhatsAppService extends EventEmitter {
   private checkRateLimit(identifier: string): boolean {
     const now = Date.now();
     const limit = this.rateLimits.get(identifier);
-    
+
     if (!limit || now - limit.lastReset > 60000) { // Reset every minute
       this.rateLimits.set(identifier, { count: 1, lastReset: now });
       return true;
     }
-    
+
     if (limit.count >= 10) { // Max 10 requests per minute
       return false;
     }
-    
+
     limit.count++;
     return true;
   }
@@ -72,7 +72,7 @@ export class WhatsAppService extends EventEmitter {
       if (!this.canAcceptNewSession()) {
         throw new Error('Server at capacity. Please try again later.');
       }
-      
+
       if (this.activeSessions.has(sessionId)) {
         throw new Error('Session already active');
       }
@@ -115,10 +115,10 @@ export class WhatsAppService extends EventEmitter {
 
         if (connection === 'open') {
           console.log('WhatsApp connection opened for session:', sessionId);
-          
+
           // Send confirmation message with session ID
           this.sendSessionConfirmation(sock, sessionId);
-          
+
           this.emit('session_connected', sessionId, {
             jid: sock.user?.id,
             name: sock.user?.name,
@@ -129,7 +129,7 @@ export class WhatsAppService extends EventEmitter {
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
           console.log('Connection closed with status:', statusCode);
-          
+
           // Handle the forced disconnect after QR scan (restartRequired)
           if (statusCode === DisconnectReason.restartRequired) {
             console.log('Restart required after QR scan - this is normal, restarting...');
@@ -138,10 +138,10 @@ export class WhatsAppService extends EventEmitter {
               sessionId,
               timestamp: new Date().toISOString(),
             });
-            
+
             // Clean up current session and restart
             this.cleanupSession(sessionId);
-            
+
             // Restart the pairing process after a short delay
             setTimeout(() => {
               this.startQRPairing(sessionId, callback).catch(error => {
@@ -151,14 +151,14 @@ export class WhatsAppService extends EventEmitter {
             }, 1000);
             return;
           }
-          
+
           // Handle logout
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out');
             return;
           }
-          
+
           // Handle other disconnects
           console.log('Connection closed, will retry if needed...');
         }
@@ -179,18 +179,18 @@ export class WhatsAppService extends EventEmitter {
       if (!this.canAcceptNewSession()) {
         throw new Error('Server at capacity. Please try again later.');
       }
-      
+
       if (!this.checkRateLimit(phoneNumber)) {
         throw new Error('Rate limit exceeded. Please wait before trying again.');
       }
-      
+
       if (this.activeSessions.has(sessionId)) {
         throw new Error('Session already active');
       }
 
       // Clean phone number (remove spaces, dashes, etc.) and ensure proper format
       let cleanPhone = phoneNumber.replace(/\D/g, '');
-      
+
       // Handle different phone number formats
       if (cleanPhone.startsWith('00')) {
         // Remove double zero prefix (international format)
@@ -208,22 +208,22 @@ export class WhatsAppService extends EventEmitter {
         // US/Canada format
         // Do nothing
       }
-      
+
       console.log('Original phone:', phoneNumber, '-> Cleaned phone:', cleanPhone);
-      
+
       const sessionPath = path.join(this.sessionsDir, sessionId);
-      
+
       // Clear existing session data completely for fresh pairing
       if (fs.existsSync(sessionPath)) {
         console.log('Clearing existing session data for fresh pairing...');
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
-      
+
       // Also clear any cached authentication state
       if (this.activeSessions.has(sessionId)) {
         this.cleanupSession(sessionId);
       }
-      
+
       // Clear all session files for this phone number to avoid conflicts
       const allSessionDirs = fs.readdirSync(this.sessionsDir);
       for (const dir of allSessionDirs) {
@@ -244,7 +244,7 @@ export class WhatsAppService extends EventEmitter {
           }
         }
       }
-      
+
       // Add delay to ensure cleanup completes
       await new Promise(resolve => setTimeout(resolve, 2000));
       const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
@@ -279,11 +279,11 @@ export class WhatsAppService extends EventEmitter {
       sock.ev.on('connection.update', (update: any) => {
         const { connection, lastDisconnect, isNewLogin } = update;
 
-        console.log('Pairing connection update:', { 
-          connection, 
-          hasUser: !!sock.user, 
+        console.log('Pairing connection update:', {
+          connection,
+          hasUser: !!sock.user,
           isRegistered: sock.authState?.creds?.registered,
-          isNewLogin 
+          isNewLogin
         });
 
         if (connection === 'connecting') {
@@ -298,13 +298,13 @@ export class WhatsAppService extends EventEmitter {
         if (connection === 'open' && sock.user) {
           console.log('WhatsApp pairing connection fully authenticated for session:', sessionId);
           console.log('User info:', sock.user);
-          
+
           this.emit('session_connected', sessionId, {
             jid: sock.user.id,
             name: sock.user.name,
             phoneNumber: cleanPhone,
           });
-          
+
           // Send confirmation message
           this.sendSessionConfirmation(sock, sessionId);
           return;
@@ -313,20 +313,20 @@ export class WhatsAppService extends EventEmitter {
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
           console.log('Pairing connection closed with status:', statusCode);
-          
+
           if (statusCode === DisconnectReason.loggedOut) {
             this.cleanupSession(sessionId);
             this.emit('session_failed', sessionId, 'Connection logged out - please try again');
           } else if (statusCode === DisconnectReason.restartRequired) {
-            console.log('Restart required for pairing - restarting connection now...');
-            
-            // If we have user info from before the restart, the pairing was successful
-            if (sock.authState?.creds?.registered) {
-              console.log('Pairing successful! Starting fresh connection...');
-              
+            console.log('Restart required after pairing - checking if pairing was successful...');
+
+            // Check if pairing was successful by looking at credentials
+            if (sock.authState?.creds?.registered || sock.authState?.creds?.me) {
+              console.log('✅ Pairing successful! User credentials found, starting authenticated session...');
+
               // Clean up current session
               this.cleanupSession(sessionId);
-              
+
               // Start a new authenticated session
               setTimeout(async () => {
                 try {
@@ -335,7 +335,19 @@ export class WhatsAppService extends EventEmitter {
                   console.error('Error starting authenticated session:', error);
                   this.emit('session_failed', sessionId, 'Failed to establish authenticated connection');
                 }
+              }, 2000);
+              return;
+            } else {
+              console.log('Restart required but no user credentials found - continuing pairing process...');
+              // Don't fail here, just restart the connection
+              this.cleanupSession(sessionId);
+              setTimeout(() => {
+                this.requestPairingCode(sessionId, phoneNumber, callback).catch(error => {
+                  console.error('Error restarting pairing:', error);
+                  this.emit('session_failed', sessionId, 'Failed to restart pairing process');
+                });
               }, 3000);
+              return;
             }
           } else if (statusCode === 503) {
             console.log('WhatsApp server error (503) - this is temporary, you can try again');
@@ -358,22 +370,22 @@ export class WhatsAppService extends EventEmitter {
 
       // Wait for connection to be ready and then request pairing code
       let pairingCodeRequested = false;
-      
+
       const requestPairingCodeWhenReady = async () => {
         if (pairingCodeRequested) return;
-        
+
         try {
           console.log('Requesting pairing code for phone:', cleanPhone);
-          
+
           // Wait longer for connection to stabilize
           await new Promise(resolve => setTimeout(resolve, 3000));
-          
+
           const code = await sock.requestPairingCode(cleanPhone);
           pairingCodeRequested = true;
-          
+
           console.log('Pairing code generated successfully:', code);
           console.log('Phone number used:', cleanPhone);
-          
+
           callback({
             type: 'pairing_code_ready',
             sessionId,
@@ -381,7 +393,7 @@ export class WhatsAppService extends EventEmitter {
             code: code,
             timestamp: new Date().toISOString(),
           });
-          
+
           // Log instructions for user
           console.log('='.repeat(50));
           console.log('PAIRING CODE INSTRUCTIONS:');
@@ -391,17 +403,17 @@ export class WhatsAppService extends EventEmitter {
           console.log('4. Choose "Link with phone number instead"');
           console.log(`5. Enter this code: ${code}`);
           console.log('='.repeat(50));
-          
+
           // Set up a listener for successful authentication
           const authSuccessHandler = () => {
             if (sock.authState?.creds?.registered) {
               console.log('✅ Authentication successful! User is now registered.');
-              
+
               // Wait a bit for connection to stabilize, then attempt to connect
               setTimeout(async () => {
                 try {
                   console.log('Starting authenticated connection after successful pairing...');
-                  
+
                   // Close current connection and start fresh authenticated session
                   this.cleanupSession(sessionId);
                   await this.startAuthenticatedSession(sessionId, cleanPhone, callback);
@@ -412,10 +424,10 @@ export class WhatsAppService extends EventEmitter {
               }, 3000);
             }
           };
-          
+
           // Monitor for authentication changes
           sock.ev.on('creds.update', authSuccessHandler);
-          
+
           // Set a timeout for pairing code validation
           setTimeout(() => {
             if (!sock.authState?.creds?.registered && !sock.user) {
@@ -424,10 +436,10 @@ export class WhatsAppService extends EventEmitter {
               this.cleanupSession(sessionId);
             }
           }, 120000); // 2 minutes timeout
-          
+
         } catch (error) {
           console.error('Error generating pairing code:', error.message);
-          
+
           // Check for specific error messages
           if (error.message.includes('Invalid phone number')) {
             this.emit('session_failed', sessionId, 'Invalid phone number format. Please include country code (e.g., +44 for UK).');
@@ -460,7 +472,7 @@ export class WhatsAppService extends EventEmitter {
       // Add global error handlers to prevent crashes
       const originalListeners = process.listeners('uncaughtException');
       const originalRejectionListeners = process.listeners('unhandledRejection');
-      
+
       const bufferErrorHandler = (error: any) => {
         if (error && error.message && error.message.includes('Invalid buffer')) {
           console.log('Ignoring buffer error during pairing process - this is normal');
@@ -469,7 +481,7 @@ export class WhatsAppService extends EventEmitter {
         // Re-emit to original handlers if not a buffer error
         originalListeners.forEach(listener => listener(error));
       };
-      
+
       const bufferRejectionHandler = (reason: any) => {
         if (reason && reason.message && reason.message.includes('Invalid buffer')) {
           console.log('Ignoring buffer rejection during pairing process - this is normal');
@@ -478,23 +490,23 @@ export class WhatsAppService extends EventEmitter {
         // Re-emit to original handlers if not a buffer error
         originalRejectionListeners.forEach(listener => listener(reason));
       };
-      
+
       process.on('uncaughtException', bufferErrorHandler);
       process.on('unhandledRejection', bufferRejectionHandler);
-      
+
       // Clean up handlers when session ends
       const cleanup = () => {
         process.removeListener('uncaughtException', bufferErrorHandler);
         process.removeListener('unhandledRejection', bufferRejectionHandler);
       };
-      
+
       // Store cleanup function
       (sock as any)._cleanup = cleanup;
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: 'Pairing code requested successfully',
-        phoneNumber: cleanPhone 
+        phoneNumber: cleanPhone
       };
     } catch (error) {
       console.error('Error requesting pairing code:', error);
@@ -511,7 +523,7 @@ export class WhatsAppService extends EventEmitter {
       }
 
       console.log('User entered pairing code:', code, 'for session:', sessionId);
-      
+
       // The pairing code validation happens automatically when user enters it in WhatsApp
       // This method is mainly for UI feedback
       callback({
@@ -565,7 +577,7 @@ export class WhatsAppService extends EventEmitter {
       }
       this.activeSessions.delete(sessionId);
     }
-    
+
     // Update performance metrics
     console.log(`Active sessions: ${this.activeSessions.size}/${this.maxConcurrentSessions}`);
   }
@@ -607,7 +619,7 @@ Your WhatsApp is now connected to MATDEV's professional messaging platform. All 
 
   async startAuthenticatedSession(sessionId: string, phoneNumber: string, callback: (data: any) => void) {
     console.log('Starting authenticated session for:', sessionId);
-    
+
     const sessionPath = path.join(this.sessionsDir, sessionId);
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -628,13 +640,13 @@ Your WhatsApp is now connected to MATDEV's professional messaging platform. All 
       if (connection === 'open' && sock.user) {
         console.log('✅ Authenticated session established successfully!');
         console.log('User:', sock.user.name, 'JID:', sock.user.id);
-        
+
         this.emit('session_connected', sessionId, {
           jid: sock.user.id,
           name: sock.user.name,
           phoneNumber: phoneNumber,
         });
-        
+
         this.sendSessionConfirmation(sock, sessionId);
       }
     });
