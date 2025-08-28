@@ -62,7 +62,7 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
       setQrCode("");
       setConnectionTimer(0);
     },
-    onError: (error) => {
+    onError: (_error) => {
       toast({
         title: "Error",
         description: "Failed to refresh QR code",
