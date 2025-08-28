@@ -58,7 +58,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
       setGeneratedId(data.id);
       setSessionStatus(null);
     },
-    onError: (error) => {
+    onError: (_error) => {
       toast({
         title: "Error",
         description: "Failed to generate ID. Please try again.",
@@ -75,7 +75,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
     onSuccess: (data) => {
       setSessionStatus(data);
     },
-    onError: (error) => {
+    onError: (_error) => {
       setSessionStatus(null);
     },
   });
@@ -98,7 +98,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
 
   const handleNext = () => {
     const selectedId = idType === "custom" ? customId : generatedId;
-    
+
     if (!selectedId.trim()) {
       toast({
         title: "Error",

@@ -13,7 +13,7 @@ interface StepIndicatorProps {
   currentStep: number;
 }
 
-function StepIndicator({ currentStep }: StepIndicatorProps) {
+function StepIndicator({ currentStep: _currentStep }: StepIndicatorProps) {
   return (
     <div className="flex items-center space-x-2">
       <div className="flex items-center justify-center w-8 h-8 rounded-full text-sm bg-muted text-muted-foreground">

@@ -50,7 +50,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
       });
       return response.json();
     },
-    onSuccess: (data, pairingMethod) => {
+    onSuccess: (_data, pairingMethod) => {
       onMethodSelect(pairingMethod);
     },
     onError: (error: any) => {

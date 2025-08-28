@@ -11,7 +11,7 @@ interface StepIndicatorProps {
   currentStep: number;
 }
 
-function StepIndicator({ currentStep }: StepIndicatorProps) {
+function StepIndicator({ currentStep: _currentStep }: StepIndicatorProps) {
   return (
     <div className="flex items-center space-x-2">
       <div className="flex items-center justify-center w-8 h-8 rounded-full text-sm bg-muted text-muted-foreground">
@@ -48,8 +48,8 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
       const response = await apiRequest("POST", `/api/sessions/${sessionId}/qr-pairing`);
       return response.json();
     },
-    onError: (error) => {
-      onError(error instanceof Error ? error.message : "Failed to start QR pairing");
+    onError: (_error) => {
+      onError(_error instanceof Error ? _error.message : "Failed to start QR pairing");
     },
   });
 
