@@ -59,48 +59,6 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   handler satisfies RouteHandlerConfig<"/api/events/[sessionId]">
 }
 
-// Validate ../../src/app/api/sessions/[sessionId]/qr-pairing/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/[sessionId]/qr-pairing/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/[sessionId]/qr-pairing">
-}
-
-// Validate ../../src/app/api/sessions/[sessionId]/refresh-qr/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/[sessionId]/refresh-qr/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/[sessionId]/refresh-qr">
-}
-
-// Validate ../../src/app/api/sessions/[sessionId]/request-code/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/[sessionId]/request-code/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/[sessionId]/request-code">
-}
-
-// Validate ../../src/app/api/sessions/[sessionId]/submit-code/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/[sessionId]/submit-code/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/[sessionId]/submit-code">
-}
-
-// Validate ../../src/app/api/sessions/check/[id]/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/check/[id]/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/check/[id]">
-}
-
-// Validate ../../src/app/api/sessions/generate-id/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/generate-id/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions/generate-id">
-}
-
-// Validate ../../src/app/api/sessions/route.ts
-{
-  const handler = {} as typeof import("../../src/app/api/sessions/route.js")
-  handler satisfies RouteHandlerConfig<"/api/sessions">
-}
-
 
 
 
