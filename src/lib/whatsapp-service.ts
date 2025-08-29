@@ -131,9 +131,13 @@ export class WhatsAppService {
           console.log('✅ WhatsApp connection opened for session:', sessionId)
 
           try {
+            // Extract phone number from user JID for QR pairing
+            const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
+            
             await storage.updateSession(sessionId, {
               status: 'connected',
               connectedAt: new Date(),
+              phoneNumber: phoneNumber, // Save phone number
             })
 
             // Emit SSE event for connection
@@ -144,6 +148,7 @@ export class WhatsAppService {
                 jid: sock.user?.id,
                 name: sock.user?.name,
               },
+              phoneNumber: phoneNumber,
               timestamp: new Date().toISOString(),
             })
 
@@ -167,6 +172,7 @@ export class WhatsAppService {
                   jid: sock.user?.id,
                   name: sock.user?.name,
                 },
+                phoneNumber: phoneNumber,
                 timestamp: new Date().toISOString(),
               })
             }
@@ -446,9 +452,24 @@ export class WhatsAppService {
           console.log('✅ Authenticated WhatsApp session started:', sessionId)
 
           try {
+            const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
+            
             await storage.updateSession(sessionId, {
               status: 'connected',
               connectedAt: new Date(),
+              phoneNumber: phoneNumber,
+            })
+
+            // Emit SSE event for connection
+            eventStore.emit(sessionId, {
+              type: 'session_connected',
+              sessionId,
+              user: {
+                jid: sock.user?.id,
+                name: sock.user?.name,
+              },
+              phoneNumber: phoneNumber,
+              timestamp: new Date().toISOString(),
             })
 
             if (callback) {
@@ -459,6 +480,7 @@ export class WhatsAppService {
                   jid: sock.user?.id,
                   name: sock.user?.name,
                 },
+                phoneNumber: phoneNumber,
                 timestamp: new Date().toISOString(),
               })
             }

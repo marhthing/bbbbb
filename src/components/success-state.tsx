@@ -32,18 +32,16 @@ export function SuccessState({ sessionData, onCreateNew }: SuccessStateProps) {
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
               <h3 className="font-semibold text-green-800 mb-2">Session Details</h3>
               <div className="space-y-1 text-sm text-green-700">
-                {sessionData.name && (
-                  <p><span className="font-medium">Name:</span> {sessionData.name}</p>
+                {sessionData.user?.name && (
+                  <p><span className="font-medium">Name:</span> {sessionData.user.name}</p>
                 )}
-                {sessionData.jid && (
-                  <p><span className="font-medium">WhatsApp ID:</span> {sessionData.jid}</p>
+                {sessionData.user?.jid && (
+                  <p><span className="font-medium">WhatsApp ID:</span> {sessionData.user.jid}</p>
                 )}
                 {sessionData.phoneNumber && (
-                  <p><span className="font-medium">Phone:</span> {sessionData.phoneNumber}</p>
+                  <p><span className="font-medium">Phone:</span> +{sessionData.phoneNumber}</p>
                 )}
-                {sessionData.connectedAt && (
-                  <p><span className="font-medium">Connected:</span> {new Date(sessionData.connectedAt).toLocaleString()}</p>
-                )}
+                <p><span className="font-medium">Connected:</span> {new Date().toLocaleString()}</p>
               </div>
             </div>
           )}

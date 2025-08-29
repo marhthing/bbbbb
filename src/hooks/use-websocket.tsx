@@ -8,6 +8,7 @@ interface SSEMessage {
   qr?: string
   code?: string
   timestamp: string
+  phoneNumber?: string // Added to store phone number
   [key: string]: any
 }
 
@@ -35,7 +36,7 @@ export function useWebSocket({
   const connect = () => {
     try {
       const sseUrl = `/api/events/${sessionId}`
-      
+
       console.log('Connecting to SSE:', sseUrl)
       eventSourceRef.current = new EventSource(sseUrl)
 
@@ -49,7 +50,7 @@ export function useWebSocket({
         try {
           const message: SSEMessage = JSON.parse(event.data)
           console.log('SSE message received:', message)
-          
+
           switch (message.type) {
             case 'qr_code':
               if (message.qr && onQRCode) {
@@ -64,7 +65,8 @@ export function useWebSocket({
             case 'session_connected':
             case 'connection_open':
               if (onConnected) {
-                onConnected(message)
+                // Pass the entire message to onConnected to access phoneNumber
+                onConnected(message) 
               }
               break
             case 'error':
@@ -81,13 +83,13 @@ export function useWebSocket({
       eventSourceRef.current.onerror = (error) => {
         console.log('SSE disconnected')
         setIsConnected(false)
-        
+
         // Attempt to reconnect if not intentionally closed
         if (reconnectAttempts.current < maxReconnectAttempts) {
           reconnectAttempts.current++
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
           console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current})`)
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, delay)
