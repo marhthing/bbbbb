@@ -749,17 +749,17 @@ export class WhatsAppService {
       this.activeSessions.delete(sessionId)
     }
     
-    // Also clean up EventStore listeners to prevent further events
-    eventStore.removeAllListeners(sessionId)
-    console.log(`🧹 Cleaned up session ${sessionId} and removed all listeners`)
+    // Don't remove EventStore listeners here - let them naturally disconnect when WebSocket closes
+    // This prevents interference with new connections trying to establish listeners
+    console.log(`🧹 Cleaned up WhatsApp session ${sessionId}`)
   }
 
   async refreshQR(sessionId: string, callback?: (data: any) => void): Promise<{ message: string }> {
     // Clean up and restart QR pairing
     this.cleanupSession(sessionId)
 
-    // Small delay before restarting
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Longer delay to allow WebSocket to reconnect and register listeners
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
     return this.startQRPairing(sessionId, callback)
   }
