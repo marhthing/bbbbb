@@ -6,7 +6,7 @@ class EventStore {
 
   subscribe(sessionId: string, callback: (data: any) => void) {
     console.log(`📝 EventStore: Subscribing to session ${sessionId}`)
-    
+
     if (!this.listeners.has(sessionId)) {
       this.listeners.set(sessionId, [])
     }
@@ -37,7 +37,7 @@ class EventStore {
     console.log(`📢 EventStore: Emitting to session ${sessionId}:`, data.type)
     const callbacks = this.listeners.get(sessionId)
     console.log(`📊 EventStore: Found ${callbacks?.length || 0} listeners for session ${sessionId}`)
-    
+
     if (callbacks && callbacks.length > 0) {
       console.log(`🚀 EventStore: Calling ${callbacks.length} callbacks`)
       callbacks.forEach((callback, index) => {
@@ -56,7 +56,7 @@ class EventStore {
       }
       const queue = this.eventQueue.get(sessionId)!
       queue.push(data)
-      
+
       // Limit queue size
       if (queue.length > this.maxQueueSize) {
         queue.shift() // Remove oldest event
@@ -95,6 +95,27 @@ class EventStore {
     })
     return status
   }
+
+  removeListener(sessionId: string, callback: EventCallback): void {
+    const listeners = this.listeners.get(sessionId) || []
+    const index = listeners.indexOf(callback)
+    if (index > -1) {
+      listeners.splice(index, 1)
+      console.log(`🗑️ EventStore: Listener removed for session ${sessionId}. Remaining: ${listeners.length}`)
+
+      if (listeners.length === 0) {
+        this.listeners.delete(sessionId)
+      } else {
+        this.listeners.set(sessionId, listeners)
+      }
+    }
+  }
+
+  removeAllListeners(sessionId: string): void {
+    const listeners = this.listeners.get(sessionId) || []
+    console.log(`🗑️ EventStore: Removing all ${listeners.length} listeners for session ${sessionId}`)
+    this.listeners.delete(sessionId)
+  }
 }
 
 // Use globalThis to ensure singleton survives HMR
@@ -105,7 +126,7 @@ declare global {
 if (!globalThis.__eventStore) {
   globalThis.__eventStore = new EventStore()
   console.log('🏗️ EventStore: Created new instance')
-  
+
   // Clean up old events every 2 minutes
   setInterval(() => {
     globalThis.__eventStore?.cleanupOldEvents()

@@ -73,8 +73,12 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <Card
-              className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => handleMethodSelect("qr")}
+              className={`transition-colors ${
+                createSessionMutation.isPending 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'cursor-pointer hover:bg-accent/50'
+              }`}
+              onClick={() => !createSessionMutation.isPending && handleMethodSelect("qr")}
             >
               <CardContent className="p-4">
                 <div className="text-center space-y-3">
@@ -96,8 +100,12 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
             </Card>
 
             <Card
-              className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => handleMethodSelect("code")}
+              className={`transition-colors ${
+                createSessionMutation.isPending 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'cursor-pointer hover:bg-accent/50'
+              }`}
+              onClick={() => !createSessionMutation.isPending && handleMethodSelect("code")}
             >
               <CardContent className="p-4">
                 <div className="text-center space-y-3">
@@ -131,8 +139,12 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
           </div>
           
           {createSessionMutation.isPending && (
-            <div className="text-center text-sm text-muted-foreground">
-              Creating session...
+            <div className="text-center">
+              <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                <span>Creating session...</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Please wait, do not click the buttons above</p>
             </div>
           )}
         </div>
