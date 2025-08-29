@@ -53,6 +53,12 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   handler satisfies AppPageConfig<"/">
 }
 
+// Validate ../../src/app/api/sessions/[id]/code-pairing/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/sessions/[id]/code-pairing/route.js")
+  handler satisfies RouteHandlerConfig<"/api/sessions/[id]/code-pairing">
+}
+
 // Validate ../../src/app/api/sessions/[id]/qr-pairing/route.ts
 {
   const handler = {} as typeof import("../../src/app/api/sessions/[id]/qr-pairing/route.js")
