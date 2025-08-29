@@ -110,6 +110,12 @@ export class WhatsAppService {
         console.log('Connection update:', { connection, qr: !!qr, receivedPendingNotifications })
 
         if (qr) {
+          // Check if this session has already completed pairing
+          if (this.completedPairings.has(sessionId)) {
+            console.log('🚫 Ignoring QR generation for completed pairing:', sessionId)
+            return
+          }
+          
           try {
             // Generate QR code as base64 image
             const qrDataURL = await QRCode.toDataURL(qr)
@@ -247,6 +253,7 @@ export class WhatsAppService {
               // Don't restart if pairing was already completed (pairing-only service)
               if (this.completedPairings.has(sessionId)) {
                 console.log('🏁 Pairing already completed for:', sessionId, '- No restart needed')
+                this.cleanupSession(sessionId, false) // Clean up completely
                 this.completedPairings.delete(sessionId) // Clean up
                 return
               }
@@ -254,7 +261,7 @@ export class WhatsAppService {
               if (hasValidCreds) {
                 console.log('✅ QR scan successful! Restarting authenticated session...')
 
-                this.cleanupSession(sessionId)
+                this.cleanupSession(sessionId, false)
                 setTimeout(() => {
                   this.startAuthenticatedSession(sessionId, callback)
                 }, 2000)
@@ -674,14 +681,10 @@ export class WhatsAppService {
                   console.log('✅ Pairing complete for:', sessionId, '- Disconnecting...')
                   this.completedPairings.add(sessionId) // Mark as completed
                   
-                  // Clean up EventStore for this session
-                  eventStore.removeAllListeners(sessionId)
+                  // Completely clean up this session
+                  this.cleanupSession(sessionId, false)
                   
-                  try {
-                    sock.end(undefined)
-                  } catch (error) {
-                    console.log('Notice: Session already disconnected:', sessionId)
-                  }
+                  console.log('🏁 Session', sessionId, 'completely cleaned up and will not generate new QR codes')
                 }, 2000) // Wait 2 more seconds then disconnect
               }, 5000) // Wait 5 seconds for connection to fully stabilize
             }
@@ -737,6 +740,10 @@ export class WhatsAppService {
       }
       this.activeSessions.delete(sessionId)
     }
+    
+    // Also clean up EventStore listeners to prevent further events
+    eventStore.removeAllListeners(sessionId)
+    console.log(`🧹 Cleaned up session ${sessionId} and removed all listeners`)
   }
 
   async refreshQR(sessionId: string, callback?: (data: any) => void): Promise<{ message: string }> {
