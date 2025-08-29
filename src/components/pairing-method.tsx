@@ -29,7 +29,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
     },
     onError: (error: any) => {
       const errorMessage = error?.message || "Failed to create session"
-      
+
       if (errorMessage.includes("already active and connected")) {
         toast({
           title: "Session Already Active",
@@ -46,8 +46,12 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
     },
   })
 
-  const handleMethodSelect = (method: "qr" | "code") => {
-    createSessionMutation.mutate(method)
+  const isCreatingSession = createSessionMutation.isPending
+
+  const handleMethodSelect = (method: 'qr' | 'code') => {
+    if (isCreatingSession) return
+
+    createSessionMutation.mutate({ method })
   }
 
   return (
@@ -74,8 +78,8 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
           <div className="grid md:grid-cols-2 gap-4">
             <Card
               className={`transition-colors ${
-                createSessionMutation.isPending 
-                  ? 'opacity-50 cursor-not-allowed' 
+                createSessionMutation.isPending
+                  ? 'opacity-50 cursor-not-allowed'
                   : 'cursor-pointer hover:bg-accent/50'
               }`}
               onClick={() => !createSessionMutation.isPending && handleMethodSelect("qr")}
@@ -101,8 +105,8 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
 
             <Card
               className={`transition-colors ${
-                createSessionMutation.isPending 
-                  ? 'opacity-50 cursor-not-allowed' 
+                createSessionMutation.isPending
+                  ? 'opacity-50 cursor-not-allowed'
                   : 'cursor-pointer hover:bg-accent/50'
               }`}
               onClick={() => !createSessionMutation.isPending && handleMethodSelect("code")}
@@ -137,7 +141,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
               Back
             </Button>
           </div>
-          
+
           {createSessionMutation.isPending && (
             <div className="text-center">
               <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">

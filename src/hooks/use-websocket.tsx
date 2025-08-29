@@ -33,7 +33,7 @@ export function useWebSocket({
   const reconnectAttempts = useRef(0)
   const maxReconnectAttempts = 5
 
-  const connect = () => {
+  const connectEventSource = () => {
     try {
       const sseUrl = `/api/events/${sessionId}`
 
@@ -107,7 +107,7 @@ export function useWebSocket({
           console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current})`)
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect()
+            connectEventSource()
           }, delay)
         } else {
           console.error('SSE error:', error)
@@ -137,13 +137,27 @@ export function useWebSocket({
   }
 
   useEffect(() => {
-    connect()
-    return () => disconnect()
+    // Connect immediately when hook is initialized
+    connectEventSource()
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+        setIsConnected(false)
+      }
+    }
   }, [sessionId])
+
+  // Also connect on mount if not already connected
+  useEffect(() => {
+    if (!isConnected && sessionId) {
+      connectEventSource()
+    }
+  }, [])
 
   return {
     isConnected,
-    connect,
+    connectEventSource: connectEventSource, // Renamed to connectEventSource to match the function name
     disconnect
   }
 }

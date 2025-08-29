@@ -85,8 +85,11 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
   // Removed polling logic - using WebSocket for real-time updates
 
   useEffect(() => {
-    startQRPairingMutation.mutate()
-  }, [])
+    // Wait for WebSocket connection before starting QR pairing
+    if (isConnected) {
+      startQRPairingMutation.mutate()
+    }
+  }, [isConnected])
 
   // Real QR codes are now received via WebSocket
 
