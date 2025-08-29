@@ -5,10 +5,12 @@ class EventStore {
   private listeners = new Map<string, Array<(data: any) => void>>()
 
   subscribe(sessionId: string, callback: (data: any) => void) {
+    console.log(`📝 EventStore: Subscribing to session ${sessionId}`)
     if (!this.listeners.has(sessionId)) {
       this.listeners.set(sessionId, [])
     }
     this.listeners.get(sessionId)!.push(callback)
+    console.log(`📊 EventStore: Now ${this.listeners.get(sessionId)!.length} listeners for session ${sessionId}`)
 
     return () => {
       const callbacks = this.listeners.get(sessionId)
@@ -22,9 +24,17 @@ class EventStore {
   }
 
   emit(sessionId: string, data: any) {
+    console.log(`📢 EventStore: Emitting to session ${sessionId}:`, data.type)
     const callbacks = this.listeners.get(sessionId)
+    console.log(`📊 EventStore: Found ${callbacks?.length || 0} listeners for session ${sessionId}`)
     if (callbacks) {
-      callbacks.forEach(callback => callback(data))
+      console.log(`🚀 EventStore: Calling ${callbacks.length} callbacks`)
+      callbacks.forEach((callback, index) => {
+        console.log(`📞 EventStore: Calling callback ${index + 1}`)
+        callback(data)
+      })
+    } else {
+      console.log(`❌ EventStore: No listeners for session ${sessionId}`)
     }
   }
 }
@@ -72,7 +82,9 @@ export async function GET(
         }
       }
 
-      eventStore.subscribe(sessionId, listener)
+      console.log(`🔗 SSE: Subscribing listener for session ${sessionId}`)
+      const unsubscribe = eventStore.subscribe(sessionId, listener)
+      console.log(`✅ SSE: Listener subscribed for session ${sessionId}`)
 
       // Keep connection alive with heartbeat
       const heartbeat = setInterval(() => {
