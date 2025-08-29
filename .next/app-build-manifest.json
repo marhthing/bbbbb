@@ -21,11 +21,6 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/sessions/route.js"
     ],
-    "/api/sessions/[sessionId]/qr-pairing/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/sessions/[sessionId]/qr-pairing/route.js"
-    ],
     "/api/events/[sessionId]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
