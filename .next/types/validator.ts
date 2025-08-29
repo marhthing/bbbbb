@@ -95,6 +95,12 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   handler satisfies RouteHandlerConfig<"/api/sessions/generate-id">
 }
 
+// Validate ../../src/app/api/sessions/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/sessions/route.js")
+  handler satisfies RouteHandlerConfig<"/api/sessions">
+}
+
 
 
 
