@@ -9,14 +9,45 @@ import P from 'pino'
 export class WhatsAppService {
   private activeSessions = new Map<string, any>()
   private sessionsDir: string
-  private maxConcurrentSessions: number = 5
+  private maxConcurrentSessions: number = 20 // Increased for better concurrency
   private rateLimitMap = new Map<string, number>()
-  private rateLimitWindow = 5 * 60 * 1000 // 5 minutes
-  private connections = new Map<string, any>() // Added this to match the changes
+  private rateLimitWindow = 2 * 60 * 1000 // 2 minutes (reduced from 5)
+  private maxAttemptsPerWindow = 3 // Allow 3 attempts per user per window
+  private connections = new Map<string, any>()
+  private connectionTimeouts = new Map<string, NodeJS.Timeout>() // Track connection timeouts
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
     this.ensureSessionsDir()
+    
+    // Start cleanup scheduler for idle sessions
+    this.startCleanupScheduler()
+  }
+
+  // Clean up idle sessions every 30 minutes
+  private startCleanupScheduler() {
+    setInterval(() => {
+      this.cleanupIdleSessions()
+    }, 30 * 60 * 1000) // 30 minutes
+  }
+
+  // Remove sessions that have been idle for too long
+  private cleanupIdleSessions() {
+    const idleThreshold = 60 * 60 * 1000 // 1 hour
+    const now = Date.now()
+    
+    Array.from(this.activeSessions.entries()).forEach(([sessionId, connection]) => {
+      try {
+        // Check if session is still active or has been idle
+        if (connection && connection.ws && connection.ws.readyState === 3) { // CLOSED
+          console.log(`🧹 Cleaning up idle session: ${sessionId}`)
+          this.cleanupSession(sessionId)
+        }
+      } catch (error) {
+        console.error(`Error checking session ${sessionId}:`, error)
+        this.cleanupSession(sessionId)
+      }
+    })
   }
 
   private ensureSessionsDir() {
@@ -31,13 +62,30 @@ export class WhatsAppService {
 
   private checkRateLimit(identifier: string): boolean {
     const now = Date.now()
-    const lastAttempt = this.rateLimitMap.get(identifier) || 0
+    const userKey = `user_${identifier}`
+    const attemptKey = `attempts_${identifier}`
+    
+    const lastAttempt = this.rateLimitMap.get(userKey) || 0
+    const attemptCount = this.rateLimitMap.get(attemptKey) || 0
 
-    if (now - lastAttempt < this.rateLimitWindow) {
+    // If outside window, reset attempts
+    if (now - lastAttempt >= this.rateLimitWindow) {
+      this.rateLimitMap.set(attemptKey, 0)
+      this.rateLimitMap.set(userKey, now)
+      console.log(`✅ Rate limit window reset for ${identifier}`)
+      return true
+    }
+
+    // Check if within attempt limit
+    if (attemptCount >= this.maxAttemptsPerWindow) {
+      console.log(`⚠️ Rate limit exceeded for ${identifier}. Attempts: ${attemptCount}/${this.maxAttemptsPerWindow}`)
       return false
     }
 
-    this.rateLimitMap.set(identifier, now)
+    // Increment attempt count
+    this.rateLimitMap.set(attemptKey, attemptCount + 1)
+    this.rateLimitMap.set(userKey, now)
+    console.log(`✅ Rate limit check passed for ${identifier}. Attempts: ${attemptCount + 1}/${this.maxAttemptsPerWindow}`)
     return true
   }
 
@@ -70,7 +118,7 @@ export class WhatsAppService {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Ubuntu', 'Chrome', `${Math.floor(Math.random() * 1000)}.0`],
+        browser: ['Ubuntu', 'Chrome', `${Date.now()}.${Math.floor(Math.random() * 1000)}`], // Unique browser ID per session
         markOnlineOnConnect: false,
         syncFullHistory: false,
         connectTimeoutMs: 30_000,
@@ -311,7 +359,7 @@ export class WhatsAppService {
         auth: state,
         printQRInTerminal: false,
         generateHighQualityLinkPreview: true,
-        browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
+        browser: ['Ubuntu', 'Chrome', `${Date.now()}.${Math.floor(Math.random() * 1000)}`], // Unique browser ID per session
         markOnlineOnConnect: false,
         syncFullHistory: false,
         connectTimeoutMs: 120_000,
