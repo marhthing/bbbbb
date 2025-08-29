@@ -15,6 +15,10 @@ export class WhatsAppService {
   private maxAttemptsPerWindow = 3 // Allow 3 attempts per user per window
   private connections = new Map<string, any>()
   private connectionTimeouts = new Map<string, NodeJS.Timeout>() // Track connection timeouts
+  private sessionMemoryUsage = new Map<string, number>() // Track memory per session
+  private maxMemoryPerSession = 50 * 1024 * 1024 // 50MB per session
+  private totalMemoryLimit = 500 * 1024 * 1024 // 500MB total for all sessions
+  private queuedRequests = new Map<string, Array<{ resolve: Function, reject: Function }>>() // Queue for high load
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
@@ -22,6 +26,9 @@ export class WhatsAppService {
 
     // Start cleanup scheduler for idle sessions
     this.startCleanupScheduler()
+    
+    // Start health monitoring
+    this.startHealthMonitoring()
   }
 
   // Clean up idle sessions every 30 minutes
@@ -29,6 +36,46 @@ export class WhatsAppService {
     setInterval(() => {
       this.cleanupIdleSessions()
     }, 30 * 60 * 1000) // 30 minutes
+  }
+
+  // Monitor session health every 5 minutes
+  private startHealthMonitoring() {
+    setInterval(() => {
+      this.monitorSessionHealth()
+    }, 5 * 60 * 1000) // 5 minutes
+  }
+
+  // Monitor session health and recover failed sessions
+  private async monitorSessionHealth() {
+    console.log(`🏥 Health check: ${this.activeSessions.size} active sessions`)
+    
+    for (const [sessionId, connection] of Array.from(this.activeSessions.entries())) {
+      try {
+        // Check if connection is still alive
+        if (!connection || !connection.ws || connection.ws.readyState !== 1) {
+          console.log(`🔴 Unhealthy session detected: ${sessionId}`)
+          await this.handleUnhealthySession(sessionId)
+        }
+      } catch (error) {
+        console.error(`Error monitoring session ${sessionId}:`, error)
+        await this.handleUnhealthySession(sessionId)
+      }
+    }
+  }
+
+  // Handle unhealthy sessions
+  private async handleUnhealthySession(sessionId: string) {
+    try {
+      // Update database status
+      await storage.updateSession(sessionId, { status: 'disconnected' })
+      
+      // Clean up the session
+      this.cleanupSession(sessionId)
+      
+      console.log(`🧹 Cleaned up unhealthy session: ${sessionId}`)
+    } catch (error) {
+      console.error(`Failed to handle unhealthy session ${sessionId}:`, error)
+    }
   }
 
   // Remove sessions that have been idle for too long
@@ -48,6 +95,34 @@ export class WhatsAppService {
         this.cleanupSession(sessionId)
       }
     })
+
+    // Monitor memory usage and cleanup if needed
+    this.monitorMemoryUsage()
+  }
+
+  // Monitor and manage memory usage
+  private monitorMemoryUsage() {
+    const memUsage = process.memoryUsage()
+    const totalHeap = memUsage.heapUsed
+    
+    console.log(`📊 Memory usage: ${Math.round(totalHeap / 1024 / 1024)}MB`)
+    
+    // If total memory exceeds limit, cleanup oldest sessions
+    if (totalHeap > this.totalMemoryLimit) {
+      console.log(`⚠️ Total memory limit exceeded, cleaning up oldest sessions`)
+      this.cleanupOldestSessions()
+    }
+  }
+
+  // Cleanup oldest sessions when memory limit is reached
+  private cleanupOldestSessions() {
+    const sessionEntries = Array.from(this.activeSessions.entries())
+    const oldestSessions = sessionEntries.slice(0, Math.ceil(sessionEntries.length * 0.3)) // Remove 30% oldest
+    
+    oldestSessions.forEach(([sessionId]) => {
+      console.log(`🧹 Cleaning up old session due to memory pressure: ${sessionId}`)
+      this.cleanupSession(sessionId)
+    })
   }
 
   private ensureSessionsDir() {
@@ -57,7 +132,20 @@ export class WhatsAppService {
   }
 
   private canAcceptNewSession(): boolean {
-    return this.activeSessions.size < this.maxConcurrentSessions
+    // Check session count limit
+    if (this.activeSessions.size >= this.maxConcurrentSessions) {
+      console.log(`⛔ Session limit reached: ${this.activeSessions.size}/${this.maxConcurrentSessions}`)
+      return false
+    }
+
+    // Check memory usage
+    const memUsage = process.memoryUsage()
+    if (memUsage.heapUsed > this.totalMemoryLimit * 0.9) { // 90% threshold
+      console.log(`⛔ Memory threshold reached: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`)
+      return false
+    }
+
+    return true
   }
 
   private checkRateLimit(identifier: string): boolean {
@@ -92,7 +180,7 @@ export class WhatsAppService {
   async startQRPairing(sessionId: string, callback?: (data: any) => void): Promise<{ message: string }> {
     try {
       if (!this.canAcceptNewSession()) {
-        throw new Error('Server at capacity. Please try again later.')
+        throw new Error('Server at capacity. Please try again later or try during off-peak hours.')
       }
 
       // Clean up any existing session first
@@ -314,7 +402,7 @@ export class WhatsAppService {
   async requestPairingCode(sessionId: string, phoneNumber: string, callback?: (data: any) => void): Promise<{ code: string }> {
     try {
       if (!this.canAcceptNewSession()) {
-        throw new Error('Server at capacity. Please try again later.')
+        throw new Error('Server at capacity. Please try again later or try during off-peak hours.')
       }
 
       if (!this.checkRateLimit(phoneNumber)) {
