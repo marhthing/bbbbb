@@ -58,9 +58,14 @@ export function useWebSocket({
               }
               break
             case 'pairing_code':
-              console.log('Processing pairing code:', message.code)
+              console.log('🎯 Processing pairing code:', message.code, 'for sessionId:', message.sessionId)
+              console.log('🔍 Current listening sessionId:', sessionId)
+              console.log('🔍 Session ID match:', message.sessionId === sessionId)
               if (message.code && onPairingCode) {
+                console.log('🚀 Calling onPairingCode callback with:', message.code)
                 onPairingCode(message.code)
+              } else {
+                console.log('❌ No code or no callback:', { code: message.code, hasCallback: !!onPairingCode })
               }
               break
             case 'session_connected':

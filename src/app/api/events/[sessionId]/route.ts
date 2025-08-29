@@ -71,12 +71,14 @@ export async function GET(
       // Keep connection alive with heartbeat
       const heartbeat = setInterval(() => {
         try {
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({
-              type: 'heartbeat',
-              timestamp: new Date().toISOString()
-            })}\n\n`)
-          )
+          if (controller.desiredSize !== null) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({
+                type: 'heartbeat',
+                timestamp: new Date().toISOString()
+              })}\n\n`)
+            )
+          }
         } catch (error) {
           console.error('Error sending SSE heartbeat:', error)
         }

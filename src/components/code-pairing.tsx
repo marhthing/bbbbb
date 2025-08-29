@@ -33,6 +33,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     onPairingCode: (code) => {
       console.log('🎯 Received pairing code in component:', code)
       console.log('🔄 Updating UI state to show pairing code')
+      console.log('🔍 Current sessionId:', sessionId)
       setGeneratedCode(code)
       setStatus("Enter the code in WhatsApp")
       setProgress(50)
