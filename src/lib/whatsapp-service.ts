@@ -9,121 +9,18 @@ import P from 'pino'
 export class WhatsAppService {
   private activeSessions = new Map<string, any>()
   private sessionsDir: string
-  private maxConcurrentSessions: number = 20 // Increased for better concurrency
   private rateLimitMap = new Map<string, number>()
-  private rateLimitWindow = 2 * 60 * 1000 // 2 minutes (reduced from 5)
+  private rateLimitWindow = 2 * 60 * 1000 // 2 minutes
   private maxAttemptsPerWindow = 3 // Allow 3 attempts per user per window
-  private connections = new Map<string, any>()
-  private connectionTimeouts = new Map<string, NodeJS.Timeout>() // Track connection timeouts
-  private sessionMemoryUsage = new Map<string, number>() // Track memory per session
-  private maxMemoryPerSession = 100 * 1024 * 1024 // 100MB per session
-  private totalMemoryLimit = 1024 * 1024 * 1024 // 1GB total for all sessions
-  private queuedRequests = new Map<string, Array<{ resolve: Function, reject: Function }>>() // Queue for high load
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
     this.ensureSessionsDir()
-
-    // Start cleanup scheduler for idle sessions
-    this.startCleanupScheduler()
-    
-    // Start health monitoring
-    this.startHealthMonitoring()
   }
 
-  // Clean up idle sessions every 30 minutes
-  private startCleanupScheduler() {
-    setInterval(() => {
-      this.cleanupIdleSessions()
-    }, 30 * 60 * 1000) // 30 minutes
-  }
 
-  // Monitor session health every 5 minutes
-  private startHealthMonitoring() {
-    setInterval(() => {
-      this.monitorSessionHealth()
-    }, 5 * 60 * 1000) // 5 minutes
-  }
 
-  // Monitor session health and recover failed sessions
-  private async monitorSessionHealth() {
-    console.log(`🏥 Health check: ${this.activeSessions.size} active sessions`)
-    
-    for (const [sessionId, connection] of Array.from(this.activeSessions.entries())) {
-      try {
-        // Check if connection is still alive
-        if (!connection || !connection.ws || connection.ws.readyState !== 1) {
-          console.log(`🔴 Unhealthy session detected: ${sessionId}`)
-          await this.handleUnhealthySession(sessionId)
-        }
-      } catch (error) {
-        console.error(`Error monitoring session ${sessionId}:`, error)
-        await this.handleUnhealthySession(sessionId)
-      }
-    }
-  }
 
-  // Handle unhealthy sessions
-  private async handleUnhealthySession(sessionId: string) {
-    try {
-      // Update database status
-      await storage.updateSession(sessionId, { status: 'disconnected' })
-      
-      // Clean up the session
-      this.cleanupSession(sessionId)
-      
-      console.log(`🧹 Cleaned up unhealthy session: ${sessionId}`)
-    } catch (error) {
-      console.error(`Failed to handle unhealthy session ${sessionId}:`, error)
-    }
-  }
-
-  // Remove sessions that have been idle for too long
-  private cleanupIdleSessions() {
-    const idleThreshold = 60 * 60 * 1000 // 1 hour
-    const now = Date.now()
-
-    Array.from(this.activeSessions.entries()).forEach(([sessionId, connection]) => {
-      try {
-        // Check if session is still active or has been idle
-        if (connection && connection.ws && connection.ws.readyState === 3) { // CLOSED
-          console.log(`🧹 Cleaning up idle session: ${sessionId}`)
-          this.cleanupSession(sessionId)
-        }
-      } catch (error) {
-        console.error(`Error checking session ${sessionId}:`, error)
-        this.cleanupSession(sessionId)
-      }
-    })
-
-    // Monitor memory usage and cleanup if needed
-    this.monitorMemoryUsage()
-  }
-
-  // Monitor and manage memory usage
-  private monitorMemoryUsage() {
-    const memUsage = process.memoryUsage()
-    const totalHeap = memUsage.heapUsed
-    
-    console.log(`📊 Memory usage: ${Math.round(totalHeap / 1024 / 1024)}MB`)
-    
-    // If total memory exceeds limit, cleanup oldest sessions
-    if (totalHeap > this.totalMemoryLimit) {
-      console.log(`⚠️ Total memory limit exceeded, cleaning up oldest sessions`)
-      this.cleanupOldestSessions()
-    }
-  }
-
-  // Cleanup oldest sessions when memory limit is reached
-  private cleanupOldestSessions() {
-    const sessionEntries = Array.from(this.activeSessions.entries())
-    const oldestSessions = sessionEntries.slice(0, Math.ceil(sessionEntries.length * 0.3)) // Remove 30% oldest
-    
-    oldestSessions.forEach(([sessionId]) => {
-      console.log(`🧹 Cleaning up old session due to memory pressure: ${sessionId}`)
-      this.cleanupSession(sessionId)
-    })
-  }
 
   private ensureSessionsDir() {
     if (!fs.existsSync(this.sessionsDir)) {
@@ -131,20 +28,12 @@ export class WhatsAppService {
     }
   }
 
+  // Simplified - just basic session count check for pairing service
   private canAcceptNewSession(): boolean {
-    // Check session count limit
-    if (this.activeSessions.size >= this.maxConcurrentSessions) {
-      console.log(`⛔ Session limit reached: ${this.activeSessions.size}/${this.maxConcurrentSessions}`)
+    if (this.activeSessions.size >= 5) { // Lower limit since we're not keeping connections
+      console.log(`⛔ Pairing service at capacity: ${this.activeSessions.size}/5`)
       return false
     }
-
-    // Check memory usage
-    const memUsage = process.memoryUsage()
-    if (memUsage.heapUsed > this.totalMemoryLimit * 0.85) { // 85% threshold (more lenient)
-      console.log(`⛔ Memory threshold reached: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB of ${Math.round(this.totalMemoryLimit / 1024 / 1024)}MB limit`)
-      return false
-    }
-
     return true
   }
 
@@ -712,8 +601,7 @@ export class WhatsAppService {
       logger: P({ level: 'silent' }), // Use silent to reduce noise
     })
 
-    // Store connection
-    this.connections.set(sessionId, sock)
+    // For pairing service, we don't store long-running connections
 
     sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
       if (connection === 'open') {
@@ -772,6 +660,16 @@ export class WhatsAppService {
                     console.error('❌ Alternative JID also failed:', altError)
                   }
                 }
+                
+                // Pairing service job is done - disconnect after welcome message
+                setTimeout(() => {
+                  console.log('✅ Pairing complete for:', sessionId, '- Disconnecting...')
+                  try {
+                    sock.end(undefined)
+                  } catch (error) {
+                    console.log('Notice: Session already disconnected:', sessionId)
+                  }
+                }, 2000) // Wait 2 more seconds then disconnect
               }, 5000) // Wait 5 seconds for connection to fully stabilize
             }
           } catch (messageError) {
