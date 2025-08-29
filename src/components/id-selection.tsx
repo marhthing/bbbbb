@@ -27,7 +27,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
       return response.json()
     },
     onSuccess: (data) => {
-      setGeneratedId(data.id)
+      setGeneratedId(data.sessionId || data.id || "")
       setSessionStatus(null)
     },
     onError: (_error) => {
@@ -128,7 +128,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
             <div className="space-y-2">
               <Input
                 placeholder="Enter your custom session ID (min 3 characters)"
-                value={customId}
+                value={customId || ""}
                 onChange={(e) => handleCustomIdChange(e.target.value)}
                 disabled={checkSessionMutation.isPending}
               />
@@ -157,7 +157,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
                 <Input
-                  value={generatedId}
+                  value={generatedId || ""}
                   readOnly
                   placeholder="Click 'Generate New ID' to create one"
                 />
