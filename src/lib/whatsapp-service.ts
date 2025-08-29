@@ -4,7 +4,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { storage } from './storage'
 import { eventStore } from '../app/api/events/[sessionId]/route'
-import { P } from 'pino'
+import P from 'pino'
 
 export class WhatsAppService {
   private activeSessions = new Map<string, any>()
@@ -543,7 +543,7 @@ export class WhatsAppService {
       auth: state,
       printQRInTerminal: false,
       browser: Browsers.ubuntu('Chrome'),
-      logger: P({ level: 'info' }),
+      logger: P({ level: 'silent' }), // Use silent to reduce noise
     })
 
     // Store connection
