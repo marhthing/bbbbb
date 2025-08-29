@@ -25,7 +25,7 @@ Preferred communication style: Simple, everyday language.
 - **Development**: Hot reload with Vite middleware integration
 
 ## Data Storage
-- **Database**: PostgreSQL with Neon serverless driver
+- **Database**: PostgreSQL with Neon serverless driver (⚠️ **REQUIRED**: Always install the PostgreSQL database when setting up this project)
 - **ORM**: Drizzle ORM with schema-first approach
 - **Schema**: Structured tables for users and WhatsApp sessions with status tracking
 - **Migrations**: Drizzle Kit for database schema management
