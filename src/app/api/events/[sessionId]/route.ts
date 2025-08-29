@@ -43,6 +43,7 @@ export async function GET(
       console.log(`SSE connection opened for session: ${sessionId}`)
 
       // Send welcome message
+      console.log(`📡 SSE: Sending welcome message for session ${sessionId}`)
       controller.enqueue(
         encoder.encode(`data: ${JSON.stringify({
           type: 'welcome',
@@ -54,15 +55,20 @@ export async function GET(
       // Register event listener
       const listener = (data: any) => {
         try {
-          console.log(`📤 Emitting SSE event for ${sessionId}:`, data.type, data)
+          console.log(`📤 SSE: Emitting event for ${sessionId}:`, data.type, data)
+          console.log(`🔍 SSE: Controller state - desiredSize:`, controller.desiredSize)
           // Check if controller is still open before enqueueing
           if (controller.desiredSize !== null) {
+            console.log(`📡 SSE: Sending data to frontend:`, data)
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
             )
+            console.log(`✅ SSE: Data sent successfully`)
+          } else {
+            console.log(`❌ SSE: Controller closed, cannot send data`)
           }
         } catch (error) {
-          console.error('Error sending SSE data:', error)
+          console.error('❌ SSE: Error sending data:', error)
         }
       }
 
