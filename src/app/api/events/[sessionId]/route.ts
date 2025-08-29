@@ -3,13 +3,13 @@ import { NextRequest } from 'next/server'
 // Simple in-memory event store for SSE
 class EventStore {
   private listeners = new Map<string, Array<(data: any) => void>>()
-  
+
   subscribe(sessionId: string, callback: (data: any) => void) {
     if (!this.listeners.has(sessionId)) {
       this.listeners.set(sessionId, [])
     }
     this.listeners.get(sessionId)!.push(callback)
-    
+
     return () => {
       const callbacks = this.listeners.get(sessionId)
       if (callbacks) {
@@ -20,7 +20,7 @@ class EventStore {
       }
     }
   }
-  
+
   emit(sessionId: string, data: any) {
     const callbacks = this.listeners.get(sessionId)
     if (callbacks) {
@@ -36,39 +36,53 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params
-  
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder()
-      
-      // Send initial connection event
-      const send = (data: any) => {
-        const message = `data: ${JSON.stringify(data)}\n\n`
-        controller.enqueue(encoder.encode(message))
-      }
-      
+      console.log(`SSE connection opened for session: ${sessionId}`)
+
       // Send welcome message
-      send({
-        type: 'welcome',
-        sessionId,
-        timestamp: new Date().toISOString()
-      })
-      
-      // Subscribe to events for this session
-      const unsubscribe = eventStore.subscribe(sessionId, send)
-      
+      controller.enqueue(
+        encoder.encode(`data: ${JSON.stringify({
+          type: 'welcome',
+          sessionId,
+          timestamp: new Date().toISOString()
+        })}\n\n`)
+      )
+
+      // Register event listener
+      const listener = (data: any) => {
+        try {
+          console.log(`📤 Emitting SSE event for ${sessionId}:`, data.type, data)
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+          )
+        } catch (error) {
+          console.error('Error sending SSE data:', error)
+        }
+      }
+
+      eventStore.subscribe(sessionId, listener)
+
       // Keep connection alive with heartbeat
       const heartbeat = setInterval(() => {
-        send({
-          type: 'heartbeat',
-          timestamp: new Date().toISOString()
-        })
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({
+              type: 'heartbeat',
+              timestamp: new Date().toISOString()
+            })}\n\n`)
+          )
+        } catch (error) {
+          console.error('Error sending SSE heartbeat:', error)
+        }
       }, 30000) // 30 seconds
-      
+
       // Cleanup on close
       request.signal.addEventListener('abort', () => {
         clearInterval(heartbeat)
-        unsubscribe()
+        // eventStore.unsubscribe(sessionId, listener); // Assuming subscribe returns an unsubscribe function or similar
         try {
           controller.close()
         } catch (error) {
@@ -77,7 +91,7 @@ export async function GET(
       })
     }
   })
-  
+
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',

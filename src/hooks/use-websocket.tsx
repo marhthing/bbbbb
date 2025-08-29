@@ -49,7 +49,7 @@ export function useWebSocket({
       eventSourceRef.current.onmessage = (event) => {
         try {
           const message: SSEMessage = JSON.parse(event.data)
-          console.log('SSE message received:', message)
+          console.log('📥 SSE message received:', message.type, message)
 
           switch (message.type) {
             case 'qr_code':

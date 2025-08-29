@@ -487,21 +487,20 @@ export class WhatsAppService {
 
         console.log(`✅ Generated 8-digit pairing code: ${code}`)
 
-        // Emit pairing code via SSE
-        eventStore.emit(sessionId, {
+        const pairingCodeData = {
           type: 'pairing_code',
           code,
           sessionId,
           timestamp: new Date().toISOString(),
-        })
+        }
+
+        // Emit pairing code via SSE
+        console.log('📤 Emitting pairing code event:', pairingCodeData)
+        eventStore.emit(sessionId, pairingCodeData)
 
         if (callback) {
-          callback({
-            type: 'pairing_code',
-            code,
-            sessionId,
-            timestamp: new Date().toISOString(),
-          })
+          console.log('📞 Calling callback with pairing code')
+          callback(pairingCodeData)
         }
 
         return { code }
