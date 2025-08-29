@@ -2,7 +2,7 @@
 const { createServer } = require('http')
 const { parse } = require('url')
 const next = require('next')
-const { wsManager } = require('./src/lib/websocket-server.ts')
+const { wsManager } = require('./websocket-server')
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
