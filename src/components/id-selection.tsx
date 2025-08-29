@@ -187,10 +187,20 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
             <Button
               onClick={handleNext}
               className="w-full"
-              disabled={!((idType === "custom" && customId.length >= 3 && (!sessionStatus?.exists || !sessionStatus?.isActive)) || 
-                         (idType === "auto" && generatedId))}
+              disabled={
+                idType === "custom" 
+                  ? (customId.length < 3 || 
+                     checkSessionMutation.isPending || 
+                     !sessionStatus ||
+                     (sessionStatus?.exists && sessionStatus?.isActive))
+                  : (generateIdMutation.isPending || !generatedId)
+              }
             >
-              Continue to Pairing Method
+              {idType === "custom" && checkSessionMutation.isPending 
+                ? "Checking availability..." 
+                : idType === "auto" && generateIdMutation.isPending
+                  ? "Generating ID..."
+                  : "Continue to Pairing Method"}
             </Button>
           </div>
         </div>
