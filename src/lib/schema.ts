@@ -30,6 +30,7 @@ export const insertWhatsappSessionSchema = createInsertSchema(whatsappSessions).
   id: true,
   phoneNumber: true,
   pairingMethod: true,
+  status: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

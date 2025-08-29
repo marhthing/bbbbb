@@ -561,7 +561,7 @@ export class WhatsAppService {
           await storage.updateSession(sessionId, {
             status: 'connected',
             phoneNumber: phoneNumber,
-            timestamp: new Date().toISOString(),
+            connectedAt: new Date(),
           })
 
           const connectionData = {

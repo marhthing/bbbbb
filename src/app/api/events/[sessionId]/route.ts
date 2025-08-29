@@ -55,9 +55,12 @@ export async function GET(
       const listener = (data: any) => {
         try {
           console.log(`📤 Emitting SSE event for ${sessionId}:`, data.type, data)
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
-          )
+          // Check if controller is still open before enqueueing
+          if (controller.desiredSize !== null) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+            )
+          }
         } catch (error) {
           console.error('Error sending SSE data:', error)
         }
