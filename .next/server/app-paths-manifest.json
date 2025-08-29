@@ -1,4 +1,5 @@
 {
+  "/api/sessions/generate-id/route": "app/api/sessions/generate-id/route.js",
   "/api/sessions/route": "app/api/sessions/route.js",
   "/page": "app/page.js"
 }

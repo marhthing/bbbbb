@@ -11,10 +11,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/api/sessions/route": [
+    "/api/sessions/generate-id/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/sessions/route.js"
+      "static/chunks/app/api/sessions/generate-id/route.js"
     ]
   }
 }
