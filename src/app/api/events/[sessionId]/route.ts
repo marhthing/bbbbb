@@ -26,7 +26,7 @@ export async function GET(
       const listener = (data: any) => {
         try {
           console.log(`🔍 SSE: Controller state - desiredSize: ${controller.desiredSize}`)
-          if (controller.desiredSize !== null && !controller.desiredSize === 0) {
+          if (controller.desiredSize !== null && controller.desiredSize !== 0) {
             console.log(`📡 SSE: Sending data to frontend:`, data)
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
