@@ -301,7 +301,7 @@ export class WhatsAppService {
                   personalChatJid = userJid.split(':')[0] + '@s.whatsapp.net'
                 }
                 
-                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nYour bot is ready to receive and send messages.`
+                const welcomeMessage = `🎉 Welcome to MATDEV Bot! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\n🤖 MATDEV Bot is ready to receive and send messages!\n\n💬 Powered by MATDEV Bot System`
 
                 console.log(`📱 Attempting to send welcome message to: ${personalChatJid}`)
                 
@@ -529,7 +529,7 @@ export class WhatsAppService {
                   personalChatJid = userJid.split(':')[0] + '@s.whatsapp.net'
                 }
                 
-                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nYour bot is ready to receive and send messages.`
+                const welcomeMessage = `🎉 Welcome to MATDEV Bot! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\n🤖 MATDEV Bot is ready to receive and send messages!\n\n💬 Powered by MATDEV Bot System`
 
                 console.log(`📱 Attempting to send welcome message to: ${personalChatJid}`)
                 
@@ -752,7 +752,7 @@ export class WhatsAppService {
                 personalChatJid = userJid.split(':')[0] + '@s.whatsapp.net'
               }
               
-              const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nYour bot is ready to receive and send messages.`
+              const welcomeMessage = `🎉 Welcome to MATDEV Bot! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\n🤖 MATDEV Bot is ready to receive and send messages!\n\n💬 Powered by MATDEV Bot System`
 
               console.log(`📱 Attempting to send welcome message to: ${personalChatJid}`)
               

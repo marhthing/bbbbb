@@ -63,10 +63,10 @@ export default function Home() {
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            WhatsApp Pairing
+            MATDEV Bot - WhatsApp Pairing
           </h1>
           <p className="text-lg text-gray-600">
-            Connect your WhatsApp account securely and easily
+            Connect your WhatsApp account to MATDEV Bot securely and easily
           </p>
         </div>
 

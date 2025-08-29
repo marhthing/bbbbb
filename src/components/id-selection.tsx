@@ -105,7 +105,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
       <CardContent className="p-6">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Session ID</h2>
+            <h2 className="text-2xl font-semibold">MATDEV Bot Session ID</h2>
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">Step</span>
               <span className="bg-primary text-primary-foreground text-sm px-2 py-1 rounded">
@@ -113,7 +113,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
               </span>
             </div>
           </div>
-          <p className="text-muted-foreground">Choose or generate a unique session identifier</p>
+          <p className="text-muted-foreground">Choose or generate a unique session identifier for your MATDEV Bot</p>
         </div>
 
         <div className="space-y-6">
@@ -135,7 +135,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
           {idType === "custom" && (
             <div className="space-y-2">
               <Input
-                placeholder="Enter your custom session ID (min 3 characters)"
+                placeholder="Enter your custom MATDEV session ID (min 3 characters)"
                 value={customId || ""}
                 onChange={(e) => handleCustomIdChange(e.target.value)}
                 disabled={checkSessionMutation.isPending}
