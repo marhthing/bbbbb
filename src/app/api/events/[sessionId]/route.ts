@@ -25,20 +25,22 @@ export async function GET(
       // Register event listener
       const listener = (data: any) => {
         try {
-          console.log(`📤 SSE: Emitting event for ${sessionId}:`, data.type, data)
-          console.log(`🔍 SSE: Controller state - desiredSize:`, controller.desiredSize)
-          // Check if controller is still open before enqueueing
-          if (controller.desiredSize !== null) {
+          console.log(`🔍 SSE: Controller state - desiredSize: ${controller.desiredSize}`)
+          if (controller.desiredSize !== null && !controller.desiredSize === 0) {
             console.log(`📡 SSE: Sending data to frontend:`, data)
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
             )
             console.log(`✅ SSE: Data sent successfully`)
           } else {
-            console.log(`❌ SSE: Controller closed, cannot send data`)
+            console.log(`⚠️ SSE: Controller closed or full, cannot send data`)
+            // Unsubscribe from events if controller is closed
+            unsubscribe()
           }
         } catch (error) {
-          console.error('❌ SSE: Error sending data:', error)
+          console.log(`❌ SSE: Error sending data:`, error)
+          // Unsubscribe from events if there's an error
+          unsubscribe()
         }
       }
 
