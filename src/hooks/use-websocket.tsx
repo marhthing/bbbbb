@@ -58,6 +58,7 @@ export function useWebSocket({
               }
               break
             case 'pairing_code':
+              console.log('Processing pairing code:', message.code)
               if (message.code && onPairingCode) {
                 onPairingCode(message.code)
               }
@@ -69,11 +70,21 @@ export function useWebSocket({
                 onConnected(message) 
               }
               break
+            case 'connecting':
+              console.log('Connection status: connecting')
+              break
             case 'error':
+              console.error('SSE error received:', message.message)
               if (onError) {
                 onError(message.message || 'SSE error')
               }
               break
+            case 'welcome':
+            case 'heartbeat':
+              // Ignore these system messages
+              break
+            default:
+              console.log('Unknown SSE message type:', message.type, message)
           }
         } catch (error) {
           console.error('Error parsing SSE message:', error)

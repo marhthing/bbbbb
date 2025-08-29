@@ -408,8 +408,24 @@ export class WhatsAppService {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode
           console.log(`❌ Connection closed. Status: ${statusCode}`)
 
-          if (!connectionEstablished && !pairingCodeGenerated) {
-            try {
+          try {
+            if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
+              console.log('Restart required after pairing code entry - checking credentials...')
+              
+              const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me
+              
+              if (hasValidCreds) {
+                console.log('✅ Pairing code successful! Restarting authenticated session...')
+                
+                this.cleanupSession(sessionId)
+                setTimeout(() => {
+                  this.startAuthenticatedSession(sessionId, callback)
+                }, 2000)
+                return
+              }
+            }
+
+            if (!connectionEstablished && !pairingCodeGenerated) {
               await storage.updateSession(sessionId, {
                 status: 'failed',
               })
@@ -430,9 +446,9 @@ export class WhatsAppService {
                   timestamp: new Date().toISOString(),
                 })
               }
-            } catch (error) {
-              console.error('Failed to update session status:', error)
             }
+          } catch (error) {
+            console.error('Failed to handle connection close:', error)
           }
 
           this.cleanupSession(sessionId)
