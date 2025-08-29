@@ -217,7 +217,24 @@ export class WhatsAppService {
       })
 
       // Save credentials when they change
-      sock.ev.on('creds.update', saveCreds)
+      sock.ev.on('creds.update', async (creds) => {
+        // Save to file system
+        await saveCreds()
+        
+        // Also save to database
+        try {
+          const sessionDataPath = path.join(sessionPath, 'creds.json')
+          if (fs.existsSync(sessionDataPath)) {
+            const sessionData = fs.readFileSync(sessionDataPath, 'utf8')
+            await storage.updateSession(sessionId, {
+              sessionData: sessionData
+            })
+            console.log('✅ Session credentials saved to database for:', sessionId)
+          }
+        } catch (error) {
+          console.error('Failed to save session data to database:', error)
+        }
+      })
 
       return { message: 'QR pairing started successfully' }
 
@@ -356,7 +373,24 @@ export class WhatsAppService {
         }
       })
 
-      sock.ev.on('creds.update', saveCreds)
+      sock.ev.on('creds.update', async (creds) => {
+        // Save to file system
+        await saveCreds()
+        
+        // Also save to database
+        try {
+          const sessionDataPath = path.join(sessionPath, 'creds.json')
+          if (fs.existsSync(sessionDataPath)) {
+            const sessionData = fs.readFileSync(sessionDataPath, 'utf8')
+            await storage.updateSession(sessionId, {
+              sessionData: sessionData
+            })
+            console.log('✅ Session credentials saved to database for:', sessionId)
+          }
+        } catch (error) {
+          console.error('Failed to save session data to database:', error)
+        }
+      })
 
       try {
         console.log('📱 Requesting pairing code for:', cleanPhone)
@@ -434,7 +468,24 @@ export class WhatsAppService {
         }
       })
 
-      sock.ev.on('creds.update', saveCreds)
+      sock.ev.on('creds.update', async (creds) => {
+        // Save to file system
+        await saveCreds()
+        
+        // Also save to database
+        try {
+          const sessionDataPath = path.join(sessionPath, 'creds.json')
+          if (fs.existsSync(sessionDataPath)) {
+            const sessionData = fs.readFileSync(sessionDataPath, 'utf8')
+            await storage.updateSession(sessionId, {
+              sessionData: sessionData
+            })
+            console.log('✅ Session credentials updated in database for:', sessionId)
+          }
+        } catch (error) {
+          console.error('Failed to update session data in database:', error)
+        }
+      })
 
     } catch (error) {
       console.error('Failed to start authenticated session:', error)
