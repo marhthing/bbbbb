@@ -334,6 +334,21 @@ export class WhatsAppService {
 
         if (connection === 'connecting') {
           console.log('🔗 Connecting to WhatsApp...')
+          
+          // Emit connecting status via SSE
+          eventStore.emit(sessionId, {
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          })
+          
+          if (callback) {
+            callback({
+              type: 'connecting',
+              sessionId,
+              timestamp: new Date().toISOString(),
+            })
+          }
         }
 
         if (connection === 'open') {
@@ -393,17 +408,25 @@ export class WhatsAppService {
           const statusCode = (lastDisconnect?.error as any)?.output?.statusCode
           console.log(`❌ Connection closed. Status: ${statusCode}`)
 
-          if (!connectionEstablished) {
+          if (!connectionEstablished && !pairingCodeGenerated) {
             try {
               await storage.updateSession(sessionId, {
                 status: 'failed',
+              })
+
+              // Emit error via SSE
+              eventStore.emit(sessionId, {
+                type: 'error',
+                sessionId,
+                message: 'Connection failed during pairing',
+                timestamp: new Date().toISOString(),
               })
 
               if (callback) {
                 callback({
                   type: 'error',
                   sessionId,
-                  message: 'Pairing failed',
+                  message: 'Connection failed during pairing',
                   timestamp: new Date().toISOString(),
                 })
               }
@@ -437,10 +460,22 @@ export class WhatsAppService {
 
       try {
         console.log('📱 Requesting pairing code for:', cleanPhone)
+        
+        // Add a delay to ensure connection is stable
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
         const code = await sock.requestPairingCode(cleanPhone)
         pairingCodeGenerated = true
 
         console.log(`✅ Generated 8-digit pairing code: ${code}`)
+
+        // Emit pairing code via SSE
+        eventStore.emit(sessionId, {
+          type: 'pairing_code',
+          code,
+          sessionId,
+          timestamp: new Date().toISOString(),
+        })
 
         if (callback) {
           callback({
@@ -455,6 +490,15 @@ export class WhatsAppService {
 
       } catch (error) {
         console.error('❌ Failed to generate pairing code:', error)
+        
+        // Emit error via SSE
+        eventStore.emit(sessionId, {
+          type: 'error',
+          sessionId,
+          message: 'Failed to generate pairing code',
+          timestamp: new Date().toISOString(),
+        })
+        
         this.cleanupSession(sessionId)
         throw error
       }
@@ -555,7 +599,10 @@ export class WhatsAppService {
     const sock = this.activeSessions.get(sessionId)
     if (sock) {
       try {
-        sock.end()
+        // Check if socket is still open before trying to end it
+        if (sock.ws && sock.ws.readyState === 1) { // WebSocket.OPEN = 1
+          sock.end()
+        }
         if (sock.removeAllListeners && typeof sock.removeAllListeners === 'function') {
           sock.removeAllListeners()
         }
