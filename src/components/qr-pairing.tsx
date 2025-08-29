@@ -90,9 +90,11 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
 
       const startQRPairing = async () => {
         try {
-          // Small delay to ensure WebSocket listener is fully registered
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          // Longer delay to ensure WebSocket listener is fully registered and ready
+          console.log('Waiting for WebSocket to be fully ready...')
+          await new Promise(resolve => setTimeout(resolve, 2000))
 
+          console.log('Starting QR pairing request...')
           const response = await fetch(`/api/sessions/${sessionId}/qr-pairing`, {
             method: 'POST'
           })

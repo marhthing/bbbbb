@@ -43,7 +43,7 @@ export function useWebSocket({
       eventSourceRef.current = new EventSource(sseUrl)
 
       eventSourceRef.current.onopen = () => {
-        console.log('SSE connected')
+        console.log(`SSE connected for session: ${sessionId}`)
         setIsConnected(true)
         reconnectAttempts.current = 0
       }
@@ -51,7 +51,7 @@ export function useWebSocket({
       eventSourceRef.current.onmessage = (event) => {
         try {
           const message: SSEMessage = JSON.parse(event.data)
-          console.log('📥 SSE message received:', message.type, message)
+          console.log(`📥 SSE message received for session ${sessionId}:`, message.type, message)
 
           switch (message.type) {
             case 'connecting':
@@ -102,7 +102,7 @@ export function useWebSocket({
       }
 
       eventSourceRef.current.onerror = (error) => {
-        console.log('SSE disconnected')
+        console.log(`SSE disconnected for session: ${sessionId}`)
         setIsConnected(false)
 
         // Attempt to reconnect if not intentionally closed
