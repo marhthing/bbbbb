@@ -19,7 +19,7 @@ export class WhatsAppService {
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
     this.ensureSessionsDir()
-    
+
     // Start cleanup scheduler for idle sessions
     this.startCleanupScheduler()
   }
@@ -35,7 +35,7 @@ export class WhatsAppService {
   private cleanupIdleSessions() {
     const idleThreshold = 60 * 60 * 1000 // 1 hour
     const now = Date.now()
-    
+
     Array.from(this.activeSessions.entries()).forEach(([sessionId, connection]) => {
       try {
         // Check if session is still active or has been idle
@@ -64,7 +64,7 @@ export class WhatsAppService {
     const now = Date.now()
     const userKey = `user_${identifier}`
     const attemptKey = `attempts_${identifier}`
-    
+
     const lastAttempt = this.rateLimitMap.get(userKey) || 0
     const attemptCount = this.rateLimitMap.get(attemptKey) || 0
 
@@ -655,7 +655,7 @@ export class WhatsAppService {
     })
   }
 
-  cleanupSession(sessionId: string) {
+  private cleanupSession(sessionId: string, deleteFromDb: boolean = true) {
     const sock = this.activeSessions.get(sessionId)
     if (sock) {
       try {
