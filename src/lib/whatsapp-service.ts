@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import * as fs from 'fs'
 import * as path from 'path'
 import { storage } from './storage'
+import { eventStore } from '../app/api/events/[sessionId]/route'
 
 export class WhatsAppService {
   private activeSessions = new Map<string, any>()
@@ -88,6 +89,14 @@ export class WhatsAppService {
             
             console.log('✅ QR Code generated for session:', sessionId)
             
+            // Emit QR code via SSE
+            eventStore.emit(sessionId, {
+              type: 'qr_code',
+              qr: qrBase64,
+              sessionId,
+              timestamp: new Date().toISOString(),
+            })
+            
             if (callback) {
               callback({
                 type: 'qr_code',
@@ -102,6 +111,13 @@ export class WhatsAppService {
         }
 
         if (connection === 'connecting') {
+          // Emit connecting status via SSE
+          eventStore.emit(sessionId, {
+            type: 'connecting',
+            sessionId,
+            timestamp: new Date().toISOString(),
+          })
+          
           if (callback) {
             callback({
               type: 'connecting',
