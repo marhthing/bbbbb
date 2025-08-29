@@ -16,8 +16,8 @@ export class WhatsAppService {
   private connections = new Map<string, any>()
   private connectionTimeouts = new Map<string, NodeJS.Timeout>() // Track connection timeouts
   private sessionMemoryUsage = new Map<string, number>() // Track memory per session
-  private maxMemoryPerSession = 50 * 1024 * 1024 // 50MB per session
-  private totalMemoryLimit = 500 * 1024 * 1024 // 500MB total for all sessions
+  private maxMemoryPerSession = 100 * 1024 * 1024 // 100MB per session
+  private totalMemoryLimit = 1024 * 1024 * 1024 // 1GB total for all sessions
   private queuedRequests = new Map<string, Array<{ resolve: Function, reject: Function }>>() // Queue for high load
 
   constructor() {
@@ -140,8 +140,8 @@ export class WhatsAppService {
 
     // Check memory usage
     const memUsage = process.memoryUsage()
-    if (memUsage.heapUsed > this.totalMemoryLimit * 0.9) { // 90% threshold
-      console.log(`⛔ Memory threshold reached: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`)
+    if (memUsage.heapUsed > this.totalMemoryLimit * 0.85) { // 85% threshold (more lenient)
+      console.log(`⛔ Memory threshold reached: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB of ${Math.round(this.totalMemoryLimit / 1024 / 1024)}MB limit`)
       return false
     }
 
