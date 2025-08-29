@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eventStore } from '../../../lib/event-store'
+import { eventStore } from '../../../../lib/event-store'
 
 export async function GET(
   request: NextRequest,
