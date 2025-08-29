@@ -12,7 +12,7 @@ export class WhatsAppService {
   private rateLimitMap = new Map<string, number>()
   private rateLimitWindow = 2 * 60 * 1000 // 2 minutes
   private maxAttemptsPerWindow = 3 // Allow 3 attempts per user per window
-  private completedPairings = new Set<string>() // Track completed pairings
+  // Removed completedPairings - each session will check its own database status
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
@@ -110,10 +110,15 @@ export class WhatsAppService {
         console.log('Connection update:', { connection, qr: !!qr, receivedPendingNotifications })
 
         if (qr) {
-          // Check if this session has already completed pairing
-          if (this.completedPairings.has(sessionId)) {
-            console.log('🚫 Ignoring QR generation for completed pairing:', sessionId)
-            return
+          // Check if this specific session has already been connected in database
+          try {
+            const sessionData = await storage.getSession(sessionId)
+            if (sessionData && sessionData.status === 'connected') {
+              console.log('🚫 Ignoring QR generation for already connected session:', sessionId)
+              return
+            }
+          } catch (error) {
+            console.log('Could not check session status, proceeding with QR generation')
           }
           
           try {
@@ -250,12 +255,16 @@ export class WhatsAppService {
 
               const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me
 
-              // Don't restart if pairing was already completed (pairing-only service)
-              if (this.completedPairings.has(sessionId)) {
-                console.log('🏁 Pairing already completed for:', sessionId, '- No restart needed')
-                this.cleanupSession(sessionId, false) // Clean up completely
-                this.completedPairings.delete(sessionId) // Clean up
-                return
+              // Check if this specific session has already been connected
+              try {
+                const sessionData = await storage.getSession(sessionId)
+                if (sessionData && sessionData.status === 'connected') {
+                  console.log('🏁 Pairing already completed for:', sessionId, '- No restart needed')
+                  this.cleanupSession(sessionId, false) // Clean up completely
+                  return
+                }
+              } catch (error) {
+                console.log('Could not check session status during restart')
               }
 
               if (hasValidCreds) {
@@ -679,7 +688,6 @@ export class WhatsAppService {
                 // Pairing service job is done - disconnect after welcome message
                 setTimeout(() => {
                   console.log('✅ Pairing complete for:', sessionId, '- Disconnecting...')
-                  this.completedPairings.add(sessionId) // Mark as completed
                   
                   // Completely clean up this session
                   this.cleanupSession(sessionId, false)
