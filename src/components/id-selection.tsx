@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -63,10 +63,18 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
   const handleCustomIdChange = (value: string) => {
     setCustomId(value)
     setSessionStatus(null)
-    if (value.trim().length >= 3) {
-      checkSessionMutation.mutate(value.trim())
-    }
   }
+
+  // Debounce the session availability check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (customId.trim().length >= 3) {
+        checkSessionMutation.mutate(customId.trim())
+      }
+    }, 800) // Wait 800ms after user stops typing
+
+    return () => clearTimeout(timer)
+  }, [customId, checkSessionMutation])
 
   const handleNext = () => {
     const selectedId = idType === "custom" ? customId : generatedId
