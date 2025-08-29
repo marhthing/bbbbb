@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
+import { useWebSocket } from '@/hooks/use-websocket'
 import { apiRequest } from '@/lib/utils'
 
 interface CodePairingProps {
@@ -26,6 +27,27 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
   const [step, setStep] = useState<"phone" | "code">("phone")
   const { toast } = useToast()
 
+  // WebSocket connection for real-time updates
+  const { isConnected } = useWebSocket({
+    sessionId,
+    onPairingCode: (code) => {
+      console.log('Received pairing code:', code)
+      setGeneratedCode(code)
+      setStatus("Enter the code in WhatsApp")
+      setProgress(50)
+      setStep("code")
+    },
+    onConnected: (data) => {
+      console.log('WhatsApp connected:', data)
+      setProgress(100)
+      onSuccess(data)
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error)
+      onError(error)
+    }
+  })
+
   const requestCodeMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/sessions/${sessionId}/request-code`, {
@@ -34,13 +56,10 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
       return response.json()
     },
     onSuccess: (data) => {
-      if (data.code) {
-        setGeneratedCode(data.code)
-        setStatus("Enter the code in WhatsApp")
-        setProgress(50)
-        setStep("code")
-        startPolling()
-      }
+      // Real pairing codes are received via WebSocket
+      // The backend will send the code through WebSocket when ready
+      setStatus("Generating pairing code...")
+      setProgress(25)
     },
     onError: (error: any) => {
       const errorMessage = error?.message || "Failed to request pairing code"
@@ -74,31 +93,7 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
     },
   })
 
-  // Polling function to check for updates
-  const startPolling = () => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await apiRequest("GET", `/api/sessions/${sessionId}`)
-        const sessionData = await response.json()
-        
-        if (sessionData.status === "connected") {
-          clearInterval(pollInterval)
-          setProgress(100)
-          onSuccess(sessionData)
-        } else if (sessionData.status === "failed") {
-          clearInterval(pollInterval)
-          onError("Pairing failed")
-        }
-      } catch (error) {
-        // Continue polling on error
-      }
-    }, 2000)
-
-    // Clean up interval after 5 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval)
-    }, 300000)
-  }
+  // Removed polling logic - using WebSocket for real-time updates
 
   const handleRequestCode = () => {
     if (!phoneNumber.trim()) {

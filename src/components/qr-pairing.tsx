@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
+import { useWebSocket } from '@/hooks/use-websocket'
 import { apiRequest } from '@/lib/utils'
 
 interface QRPairingProps {
@@ -22,6 +23,26 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
   const [progress, setProgress] = useState(0)
   const { toast } = useToast()
 
+  // WebSocket connection for real-time updates
+  const { isConnected } = useWebSocket({
+    sessionId,
+    onQRCode: (qr) => {
+      console.log('Received QR code:', qr)
+      setQrCode(`data:image/png;base64,${qr}`)
+      setStatus("Scan the QR code with WhatsApp")
+      setProgress(50)
+    },
+    onConnected: (data) => {
+      console.log('WhatsApp connected:', data)
+      setProgress(100)
+      onSuccess(data)
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error)
+      onError(error)
+    }
+  })
+
   const startQRPairingMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", `/api/sessions/${sessionId}/qr-pairing`)
@@ -30,8 +51,6 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
     onSuccess: () => {
       setStatus("Waiting for QR code...")
       setProgress(25)
-      // Start polling for updates
-      startPolling()
     },
     onError: (error: any) => {
       const errorMessage = error?.message || "Failed to start QR pairing"
@@ -63,44 +82,13 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
   })
 
   // Polling function to check for updates
-  const startPolling = () => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await apiRequest("GET", `/api/sessions/${sessionId}`)
-        const sessionData = await response.json()
-        
-        if (sessionData.status === "connected") {
-          clearInterval(pollInterval)
-          onSuccess(sessionData)
-        } else if (sessionData.status === "failed") {
-          clearInterval(pollInterval)
-          onError("Pairing failed")
-        }
-      } catch (error) {
-        // Continue polling on error
-      }
-    }, 2000)
-
-    // Clean up interval after 5 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval)
-    }, 300000)
-  }
+  // Removed polling logic - using WebSocket for real-time updates
 
   useEffect(() => {
     startQRPairingMutation.mutate()
   }, [])
 
-  // Simulate QR code generation for demo
-  useEffect(() => {
-    if (startQRPairingMutation.isSuccess && !qrCode) {
-      setTimeout(() => {
-        setQrCode("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IndoaXRlIi8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9ImJsYWNrIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5RUiBDb2RlPC90ZXh0Pgo8L3N2Zz4=")
-        setStatus("Scan the QR code with WhatsApp")
-        setProgress(50)
-      }, 2000)
-    }
-  }, [startQRPairingMutation.isSuccess, qrCode])
+  // Real QR codes are now received via WebSocket
 
   return (
     <Card className="mb-6">
