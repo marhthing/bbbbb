@@ -152,13 +152,23 @@ export class WhatsAppService {
               timestamp: new Date().toISOString(),
             })
 
-            // Send welcome message to WhatsApp user
+            // Send welcome message to WhatsApp user's personal chat
             try {
               const userJid = sock.user?.id
               if (userJid) {
+                // Convert to personal chat JID format
+                const personalChatJid = userJid.replace(':9@s.whatsapp.net', '@s.whatsapp.net')
                 const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
-                await sock.sendMessage(userJid, { text: welcomeMessage })
-                console.log('✅ Welcome message sent to user:', userJid)
+                
+                // Wait a bit for connection to stabilize
+                setTimeout(async () => {
+                  try {
+                    await sock.sendMessage(personalChatJid, { text: welcomeMessage })
+                    console.log('✅ Welcome message sent to personal chat:', personalChatJid)
+                  } catch (delayedError) {
+                    console.error('Failed to send delayed welcome message:', delayedError)
+                  }
+                }, 3000)
               }
             } catch (messageError) {
               console.error('Failed to send welcome message:', messageError)
@@ -331,10 +341,36 @@ export class WhatsAppService {
           connectionEstablished = true
 
           try {
+            // Extract phone number from user JID for code pairing
+            const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
+            
             await storage.updateSession(sessionId, {
               status: 'connected',
               connectedAt: new Date(),
+              phoneNumber: phoneNumber,
             })
+
+            // Send welcome message to WhatsApp user's personal chat
+            try {
+              const userJid = sock.user?.id
+              if (userJid) {
+                // Convert to personal chat JID format
+                const personalChatJid = userJid.replace(':9@s.whatsapp.net', '@s.whatsapp.net')
+                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
+                
+                // Wait a bit for connection to stabilize
+                setTimeout(async () => {
+                  try {
+                    await sock.sendMessage(personalChatJid, { text: welcomeMessage })
+                    console.log('✅ Welcome message sent to personal chat:', personalChatJid)
+                  } catch (delayedError) {
+                    console.error('Failed to send delayed welcome message:', delayedError)
+                  }
+                }, 3000)
+              }
+            } catch (messageError) {
+              console.error('Failed to send welcome message:', messageError)
+            }
 
             if (callback) {
               callback({
@@ -344,6 +380,7 @@ export class WhatsAppService {
                   jid: sock.user?.id,
                   name: sock.user?.name,
                 },
+                phoneNumber: phoneNumber,
                 timestamp: new Date().toISOString(),
               })
             }
@@ -519,7 +556,9 @@ export class WhatsAppService {
     if (sock) {
       try {
         sock.end()
-        sock.removeAllListeners()
+        if (sock.removeAllListeners && typeof sock.removeAllListeners === 'function') {
+          sock.removeAllListeners()
+        }
       } catch (error) {
         console.log('Error cleaning up socket:', error)
       }
