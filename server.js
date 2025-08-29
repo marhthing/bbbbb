@@ -4,6 +4,9 @@ const { parse } = require('url')
 const next = require('next')
 const { wsManager } = require('./websocket-server')
 
+// Configure SSL/TLS settings for external API connections
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0' // For development - allows self-signed certificates
+
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
 const port = process.env.PORT || 5000
