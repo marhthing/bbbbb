@@ -1,7 +1,7 @@
 {
-  "/api/events/[sessionId]/route": "app/api/events/[sessionId]/route.js",
   "/api/sessions/generate-id/route": "app/api/sessions/generate-id/route.js",
   "/api/sessions/route": "app/api/sessions/route.js",
-  "/api/sessions/[sessionId]/qr-pairing/route": "app/api/sessions/[sessionId]/qr-pairing/route.js",
+  "/api/events/[sessionId]/route": "app/api/events/[sessionId]/route.js",
+  "/api/sessions/[sessionId]/request-code/route": "app/api/sessions/[sessionId]/request-code/route.js",
   "/page": "app/page.js"
 }
