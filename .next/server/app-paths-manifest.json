@@ -1,6 +1,4 @@
 {
-  "/api/events/[sessionId]/route": "app/api/events/[sessionId]/route.js",
-  "/api/sessions/generate-id/route": "app/api/sessions/generate-id/route.js",
-  "/api/sessions/route": "app/api/sessions/route.js",
-  "/page": "app/page.js"
+  "/api/admin/login/route": "app/api/admin/login/route.js",
+  "/admin/page": "app/admin/page.js"
 }

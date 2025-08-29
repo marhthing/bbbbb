@@ -47,10 +47,58 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 }
 
 
+// Validate ../../src/app/admin/dashboard/page.tsx
+{
+  const handler = {} as typeof import("../../src/app/admin/dashboard/page.js")
+  handler satisfies AppPageConfig<"/admin/dashboard">
+}
+
+// Validate ../../src/app/admin/page.tsx
+{
+  const handler = {} as typeof import("../../src/app/admin/page.js")
+  handler satisfies AppPageConfig<"/admin">
+}
+
 // Validate ../../src/app/page.tsx
 {
   const handler = {} as typeof import("../../src/app/page.js")
   handler satisfies AppPageConfig<"/">
+}
+
+// Validate ../../src/app/api/admin/auth-check/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/auth-check/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/auth-check">
+}
+
+// Validate ../../src/app/api/admin/login/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/login/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/login">
+}
+
+// Validate ../../src/app/api/admin/logout/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/logout/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/logout">
+}
+
+// Validate ../../src/app/api/admin/sessions/[sessionId]/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/sessions/[sessionId]/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/sessions/[sessionId]">
+}
+
+// Validate ../../src/app/api/admin/sessions/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/sessions/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/sessions">
+}
+
+// Validate ../../src/app/api/admin/stats/route.ts
+{
+  const handler = {} as typeof import("../../src/app/api/admin/stats/route.js")
+  handler satisfies RouteHandlerConfig<"/api/admin/stats">
 }
 
 // Validate ../../src/app/api/events/[sessionId]/route.ts

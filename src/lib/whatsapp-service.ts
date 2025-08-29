@@ -294,22 +294,37 @@ export class WhatsAppService {
             try {
               const userJid = sock.user?.id
               if (userJid) {
-                // Convert to personal chat JID format
-                const personalChatJid = userJid.replace(':9@s.whatsapp.net', '@s.whatsapp.net')
-                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
+                // Convert to personal chat JID format - handle both formats
+                let personalChatJid = userJid
+                if (userJid.includes(':')) {
+                  // Format like "447350152214:31@s.whatsapp.net" -> "447350152214@s.whatsapp.net"
+                  personalChatJid = userJid.split(':')[0] + '@s.whatsapp.net'
+                }
+                
+                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nYour bot is ready to receive and send messages.`
 
-                // Wait a bit for connection to stabilize
+                console.log(`📱 Attempting to send welcome message to: ${personalChatJid}`)
+                
+                // Wait a bit longer for connection to fully stabilize
                 setTimeout(async () => {
                   try {
                     await sock.sendMessage(personalChatJid, { text: welcomeMessage })
-                    console.log('✅ Welcome message sent to personal chat:', personalChatJid)
+                    console.log('✅ Welcome message sent successfully to:', personalChatJid)
                   } catch (delayedError) {
-                    console.error('Failed to send delayed welcome message:', delayedError)
+                    console.error('❌ Failed to send welcome message:', delayedError)
+                    // Try alternative JID format
+                    try {
+                      const altJid = userJid
+                      await sock.sendMessage(altJid, { text: welcomeMessage })
+                      console.log('✅ Welcome message sent using alternative JID:', altJid)
+                    } catch (altError) {
+                      console.error('❌ Alternative JID also failed:', altError)
+                    }
                   }
-                }, 3000)
+                }, 5000) // Increased delay to 5 seconds
               }
             } catch (messageError) {
-              console.error('Failed to send welcome message:', messageError)
+              console.error('❌ Error in welcome message setup:', messageError)
             }
 
             if (callback) {
