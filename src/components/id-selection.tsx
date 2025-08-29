@@ -74,7 +74,7 @@ export function IDSelection({ onNext, currentStep }: IDSelectionProps) {
     }, 800) // Wait 800ms after user stops typing
 
     return () => clearTimeout(timer)
-  }, [customId, checkSessionMutation])
+  }, [customId])
 
   const handleNext = () => {
     const selectedId = idType === "custom" ? customId : generatedId
