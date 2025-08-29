@@ -741,6 +741,43 @@ export class WhatsAppService {
           // Emit via SSE
           eventStore.emit(sessionId, connectionData)
 
+          // Send welcome message to WhatsApp user's personal chat
+          try {
+            const userJid = sock.user?.id
+            if (userJid) {
+              // Convert to personal chat JID format - handle both formats
+              let personalChatJid = userJid
+              if (userJid.includes(':')) {
+                // Format like "447350152214:31@s.whatsapp.net" -> "447350152214@s.whatsapp.net"
+                personalChatJid = userJid.split(':')[0] + '@s.whatsapp.net'
+              }
+              
+              const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nYour bot is ready to receive and send messages.`
+
+              console.log(`📱 Attempting to send welcome message to: ${personalChatJid}`)
+              
+              // Wait a bit for connection to fully stabilize
+              setTimeout(async () => {
+                try {
+                  await sock.sendMessage(personalChatJid, { text: welcomeMessage })
+                  console.log('✅ Welcome message sent successfully to:', personalChatJid)
+                } catch (delayedError) {
+                  console.error('❌ Failed to send welcome message:', delayedError)
+                  // Try alternative JID format
+                  try {
+                    const altJid = userJid
+                    await sock.sendMessage(altJid, { text: welcomeMessage })
+                    console.log('✅ Welcome message sent using alternative JID:', altJid)
+                  } catch (altError) {
+                    console.error('❌ Alternative JID also failed:', altError)
+                  }
+                }
+              }, 5000) // Wait 5 seconds for connection to fully stabilize
+            }
+          } catch (messageError) {
+            console.error('❌ Error in welcome message setup:', messageError)
+          }
+
           if (callback) {
             callback(connectionData)
           }
