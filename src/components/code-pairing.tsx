@@ -31,19 +31,23 @@ export function CodePairing({ sessionId, onSuccess, onError, onBack, currentStep
   const { isConnected } = useWebSocket({
     sessionId,
     onPairingCode: (code) => {
-      console.log('Received pairing code:', code)
+      console.log('Received pairing code in component:', code)
       setGeneratedCode(code)
       setStatus("Enter the code in WhatsApp")
       setProgress(50)
       setStep("code")
     },
     onConnected: (data) => {
-      console.log('WhatsApp connected:', data)
+      console.log('WhatsApp connected in component:', data)
+      setStatus("Successfully connected!")
       setProgress(100)
-      onSuccess(data)
+      // Small delay to show success message before transitioning
+      setTimeout(() => {
+        onSuccess(data)
+      }, 1000)
     },
     onError: (error) => {
-      console.error('WebSocket error:', error)
+      console.error('WebSocket error in component:', error)
       onError(error)
     }
   })

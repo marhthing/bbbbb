@@ -1,9 +1,10 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys'
 import QRCode from 'qrcode'
 import * as fs from 'fs'
 import * as path from 'path'
 import { storage } from './storage'
 import { eventStore } from '../app/api/events/[sessionId]/route'
+import { P } from 'pino'
 
 export class WhatsAppService {
   private activeSessions = new Map<string, any>()
@@ -11,6 +12,7 @@ export class WhatsAppService {
   private maxConcurrentSessions: number = 5
   private rateLimitMap = new Map<string, number>()
   private rateLimitWindow = 5 * 60 * 1000 // 5 minutes
+  private connections = new Map<string, any>() // Added this to match the changes
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
@@ -30,11 +32,11 @@ export class WhatsAppService {
   private checkRateLimit(identifier: string): boolean {
     const now = Date.now()
     const lastAttempt = this.rateLimitMap.get(identifier) || 0
-    
+
     if (now - lastAttempt < this.rateLimitWindow) {
       return false
     }
-    
+
     this.rateLimitMap.set(identifier, now)
     return true
   }
@@ -86,9 +88,9 @@ export class WhatsAppService {
             // Generate QR code as base64 image
             const qrDataURL = await QRCode.toDataURL(qr)
             const qrBase64 = qrDataURL.split(',')[1] // Remove data:image/png;base64, prefix
-            
+
             console.log('✅ QR Code generated for session:', sessionId)
-            
+
             // Emit QR code via SSE
             eventStore.emit(sessionId, {
               type: 'qr_code',
@@ -96,7 +98,7 @@ export class WhatsAppService {
               sessionId,
               timestamp: new Date().toISOString(),
             })
-            
+
             if (callback) {
               callback({
                 type: 'qr_code',
@@ -117,7 +119,7 @@ export class WhatsAppService {
             sessionId,
             timestamp: new Date().toISOString(),
           })
-          
+
           if (callback) {
             callback({
               type: 'connecting',
@@ -133,7 +135,7 @@ export class WhatsAppService {
           try {
             // Extract phone number from user JID for QR pairing
             const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
-            
+
             await storage.updateSession(sessionId, {
               status: 'connected',
               connectedAt: new Date(),
@@ -159,7 +161,7 @@ export class WhatsAppService {
                 // Convert to personal chat JID format
                 const personalChatJid = userJid.replace(':9@s.whatsapp.net', '@s.whatsapp.net')
                 const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
-                
+
                 // Wait a bit for connection to stabilize
                 setTimeout(async () => {
                   try {
@@ -198,12 +200,12 @@ export class WhatsAppService {
           try {
             if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
               console.log('Restart required after QR scan - checking credentials...')
-              
+
               const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me
-              
+
               if (hasValidCreds) {
                 console.log('✅ QR scan successful! Restarting authenticated session...')
-                
+
                 this.cleanupSession(sessionId)
                 setTimeout(() => {
                   this.startAuthenticatedSession(sessionId, callback)
@@ -236,7 +238,7 @@ export class WhatsAppService {
       sock.ev.on('creds.update', async (creds) => {
         // Save to file system
         await saveCreds()
-        
+
         // Also save to database
         try {
           const sessionDataPath = path.join(sessionPath, 'creds.json')
@@ -334,14 +336,14 @@ export class WhatsAppService {
 
         if (connection === 'connecting') {
           console.log('🔗 Connecting to WhatsApp...')
-          
+
           // Emit connecting status via SSE
           eventStore.emit(sessionId, {
             type: 'connecting',
             sessionId,
             timestamp: new Date().toISOString(),
           })
-          
+
           if (callback) {
             callback({
               type: 'connecting',
@@ -358,7 +360,7 @@ export class WhatsAppService {
           try {
             // Extract phone number from user JID for code pairing
             const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
-            
+
             await storage.updateSession(sessionId, {
               status: 'connected',
               connectedAt: new Date(),
@@ -372,7 +374,7 @@ export class WhatsAppService {
                 // Convert to personal chat JID format
                 const personalChatJid = userJid.replace(':9@s.whatsapp.net', '@s.whatsapp.net')
                 const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
-                
+
                 // Wait a bit for connection to stabilize
                 setTimeout(async () => {
                   try {
@@ -411,12 +413,12 @@ export class WhatsAppService {
           try {
             if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
               console.log('Restart required after pairing code entry - checking credentials...')
-              
+
               const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me
-              
+
               if (hasValidCreds) {
                 console.log('✅ Pairing code successful! Restarting authenticated session...')
-                
+
                 this.cleanupSession(sessionId)
                 setTimeout(() => {
                   this.startAuthenticatedSession(sessionId, callback)
@@ -458,7 +460,7 @@ export class WhatsAppService {
       sock.ev.on('creds.update', async (creds) => {
         // Save to file system
         await saveCreds()
-        
+
         // Also save to database
         try {
           const sessionDataPath = path.join(sessionPath, 'creds.json')
@@ -476,10 +478,10 @@ export class WhatsAppService {
 
       try {
         console.log('📱 Requesting pairing code for:', cleanPhone)
-        
+
         // Add a delay to ensure connection is stable
         await new Promise(resolve => setTimeout(resolve, 2000))
-        
+
         const code = await sock.requestPairingCode(cleanPhone)
         pairingCodeGenerated = true
 
@@ -506,7 +508,7 @@ export class WhatsAppService {
 
       } catch (error) {
         console.error('❌ Failed to generate pairing code:', error)
-        
+
         // Emit error via SSE
         eventStore.emit(sessionId, {
           type: 'error',
@@ -514,7 +516,7 @@ export class WhatsAppService {
           message: 'Failed to generate pairing code',
           timestamp: new Date().toISOString(),
         })
-        
+
         this.cleanupSession(sessionId)
         throw error
       }
@@ -527,88 +529,83 @@ export class WhatsAppService {
   }
 
   private async startAuthenticatedSession(sessionId: string, callback?: (data: any) => void) {
-    try {
-      const sessionPath = path.join(this.sessionsDir, sessionId)
-      const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
-      const { version } = await fetchLatestBaileysVersion()
+    console.log('🔄 Starting authenticated session for:', sessionId)
 
-      const sock = makeWASocket({
-        version,
-        auth: state,
-        printQRInTerminal: false,
-        browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
-        markOnlineOnConnect: false,
-      })
+    const sessionPath = path.join(process.cwd(), 'sessions', sessionId)
 
-      this.activeSessions.set(sessionId, sock)
+    // Make sure session directory exists
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true })
+    }
 
-      sock.ev.on('connection.update', async (update: any) => {
-        const { connection } = update
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
 
-        if (connection === 'open') {
-          console.log('✅ Authenticated WhatsApp session started:', sessionId)
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      browser: Browsers.ubuntu('Chrome'),
+      logger: P({ level: 'info' }),
+    })
 
-          try {
-            const phoneNumber = sock.user?.id ? sock.user.id.split('@')[0].split(':')[0] : null
-            
-            await storage.updateSession(sessionId, {
-              status: 'connected',
-              connectedAt: new Date(),
-              phoneNumber: phoneNumber,
-            })
+    // Store connection
+    this.connections.set(sessionId, sock)
 
-            // Emit SSE event for connection
-            eventStore.emit(sessionId, {
-              type: 'session_connected',
-              sessionId,
-              user: {
-                jid: sock.user?.id,
-                name: sock.user?.name,
-              },
-              phoneNumber: phoneNumber,
-              timestamp: new Date().toISOString(),
-            })
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+      if (connection === 'open') {
+        console.log('✅ Authenticated WhatsApp session started:', sessionId)
 
-            if (callback) {
-              callback({
-                type: 'session_connected',
-                sessionId,
-                user: {
-                  jid: sock.user?.id,
-                  name: sock.user?.name,
-                },
-                phoneNumber: phoneNumber,
-                timestamp: new Date().toISOString(),
-              })
-            }
-          } catch (error) {
-            console.error('Failed to update session status:', error)
-          }
-        }
-      })
-
-      sock.ev.on('creds.update', async (creds) => {
-        // Save to file system
-        await saveCreds()
-        
-        // Also save to database
+        // Update session in database
         try {
-          const sessionDataPath = path.join(sessionPath, 'creds.json')
-          if (fs.existsSync(sessionDataPath)) {
-            const sessionData = fs.readFileSync(sessionDataPath, 'utf8')
-            await storage.updateSession(sessionId, {
-              sessionData: sessionData
-            })
-            console.log('✅ Session credentials updated in database for:', sessionId)
+          const phoneNumber = sock.user?.id?.split(':')[0] || 'Unknown'
+          const name = sock.user?.name || 'Unknown'
+
+          await storage.updateSession(sessionId, {
+            status: 'connected',
+            phoneNumber: phoneNumber,
+            timestamp: new Date().toISOString(),
+          })
+
+          const connectionData = {
+            type: 'session_connected',
+            sessionId,
+            phoneNumber: phoneNumber,
+            name: name,
+            timestamp: new Date().toISOString(),
+          }
+
+          // Emit via SSE
+          eventStore.emit(sessionId, connectionData)
+
+          if (callback) {
+            callback(connectionData)
           }
         } catch (error) {
-          console.error('Failed to update session data in database:', error)
+          console.error('Failed to update session:', error)
         }
-      })
+      } else if (connection === 'close') {
+        console.log('❌ Authenticated session closed:', sessionId)
+        this.cleanupSession(sessionId)
+      }
+    })
 
-    } catch (error) {
-      console.error('Failed to start authenticated session:', error)
-    }
+    sock.ev.on('creds.update', async (creds) => {
+      // Save to file system
+      await saveCreds()
+
+      // Also save to database
+      try {
+        const sessionDataPath = path.join(sessionPath, 'creds.json')
+        if (fs.existsSync(sessionDataPath)) {
+          const sessionData = fs.readFileSync(sessionDataPath, 'utf8')
+          await storage.updateSession(sessionId, {
+            sessionData: sessionData
+          })
+          console.log('✅ Session credentials updated in database for:', sessionId)
+        }
+      } catch (error) {
+        console.error('Failed to update session data in database:', error)
+      }
+    })
   }
 
   cleanupSession(sessionId: string) {
@@ -632,10 +629,10 @@ export class WhatsAppService {
   async refreshQR(sessionId: string, callback?: (data: any) => void): Promise<{ message: string }> {
     // Clean up and restart QR pairing
     this.cleanupSession(sessionId)
-    
+
     // Small delay before restarting
     await new Promise(resolve => setTimeout(resolve, 1000))
-    
+
     return this.startQRPairing(sessionId, callback)
   }
 
