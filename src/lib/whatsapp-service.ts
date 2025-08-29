@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import * as fs from 'fs'
 import * as path from 'path'
 import { storage } from './storage'
-import { eventStore } from '../app/api/events/[sessionId]/route'
+import { eventStore } from './event-store'
 import P from 'pino'
 
 export class WhatsAppService {
