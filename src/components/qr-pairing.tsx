@@ -22,6 +22,7 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
   const [status, setStatus] = useState<string>("Initializing...")
   const [progress, setProgress] = useState(0)
   const { toast } = useToast()
+  const [isInitialized, setIsInitialized] = useState(false); // State to track if initialization has started
 
   // WebSocket connection for real-time updates
   const { isConnected } = useWebSocket({
@@ -81,15 +82,39 @@ export function QRPairing({ sessionId, onSuccess, onError, onBack, currentStep }
     },
   })
 
-  // Polling function to check for updates
-  // Removed polling logic - using WebSocket for real-time updates
-
+  // Start QR pairing only after WebSocket connection is established
   useEffect(() => {
-    // Wait for WebSocket connection before starting QR pairing
-    if (isConnected) {
-      startQRPairingMutation.mutate()
+    if (isConnected && !isInitialized) {
+      console.log('WebSocket connected, starting QR pairing for session:', sessionId)
+      setIsInitialized(true)
+
+      const startQRPairing = async () => {
+        try {
+          // Small delay to ensure WebSocket listener is fully registered
+          await new Promise(resolve => setTimeout(resolve, 1000))
+
+          const response = await fetch(`/api/sessions/${sessionId}/qr-pairing`, {
+            method: 'POST'
+          })
+
+          if (!response.ok) {
+            const errorData = await response.text()
+            throw new Error(errorData || 'Failed to start QR pairing')
+          }
+
+          console.log('QR pairing request sent successfully')
+          setStatus("Generating QR code...")
+          setProgress(25)
+        } catch (error) {
+          console.error('Failed to start QR pairing:', error)
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          onError(errorMsg)
+        }
+      }
+
+      startQRPairing()
     }
-  }, [isConnected])
+  }, [isConnected, isInitialized, sessionId, onError])
 
   // Real QR codes are now received via WebSocket
 

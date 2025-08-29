@@ -18,6 +18,7 @@ interface UseSSEProps {
   onPairingCode?: (code: string) => void
   onConnected?: (data: any) => void
   onError?: (error: string) => void
+  onConnecting?: () => void
 }
 
 export function useWebSocket({ 
@@ -25,7 +26,8 @@ export function useWebSocket({
   onQRCode, 
   onPairingCode, 
   onConnected, 
-  onError 
+  onError,
+  onConnecting
 }: UseSSEProps) {
   const [isConnected, setIsConnected] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -52,6 +54,12 @@ export function useWebSocket({
           console.log('📥 SSE message received:', message.type, message)
 
           switch (message.type) {
+            case 'connecting':
+              console.log('Connection status: connecting')
+              if (onConnecting) {
+                onConnecting()
+              }
+              break
             case 'qr_code':
               if (message.qr && onQRCode) {
                 onQRCode(message.qr)
@@ -74,9 +82,6 @@ export function useWebSocket({
                 // Pass the entire message to onConnected to access phoneNumber
                 onConnected(message) 
               }
-              break
-            case 'connecting':
-              console.log('Connection status: connecting')
               break
             case 'error':
               console.error('SSE error received:', message.message)
