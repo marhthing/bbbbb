@@ -12,6 +12,7 @@ export class WhatsAppService {
   private rateLimitMap = new Map<string, number>()
   private rateLimitWindow = 2 * 60 * 1000 // 2 minutes
   private maxAttemptsPerWindow = 3 // Allow 3 attempts per user per window
+  private completedPairings = new Set<string>() // Track completed pairings
 
   constructor() {
     this.sessionsDir = path.join(process.cwd(), 'sessions')
@@ -242,6 +243,13 @@ export class WhatsAppService {
               console.log('Restart required after QR scan - checking credentials...')
 
               const hasValidCreds = sock.authState?.creds?.registered || sock.authState?.creds?.me
+
+              // Don't restart if pairing was already completed (pairing-only service)
+              if (this.completedPairings.has(sessionId)) {
+                console.log('🏁 Pairing already completed for:', sessionId, '- No restart needed')
+                this.completedPairings.delete(sessionId) // Clean up
+                return
+              }
 
               if (hasValidCreds) {
                 console.log('✅ QR scan successful! Restarting authenticated session...')
@@ -664,6 +672,11 @@ export class WhatsAppService {
                 // Pairing service job is done - disconnect after welcome message
                 setTimeout(() => {
                   console.log('✅ Pairing complete for:', sessionId, '- Disconnecting...')
+                  this.completedPairings.add(sessionId) // Mark as completed
+                  
+                  // Clean up EventStore for this session
+                  eventStore.removeAllListeners(sessionId)
+                  
                   try {
                     sock.end(undefined)
                   } catch (error) {
