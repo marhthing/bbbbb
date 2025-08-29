@@ -17,15 +17,15 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
   const { toast } = useToast()
 
   const createSessionMutation = useMutation({
-    mutationFn: async (pairingMethod: "qr" | "code") => {
+    mutationFn: async (method: "qr" | "code") => {
       const response = await apiRequest("POST", "/api/sessions", {
         id: sessionId,
-        pairingMethod,
+        pairingMethod: method,
       })
       return response.json()
     },
-    onSuccess: (_data, pairingMethod) => {
-      onMethodSelect(pairingMethod)
+    onSuccess: (_data, method) => {
+      onMethodSelect(method)
     },
     onError: (error: any) => {
       const errorMessage = error?.message || "Failed to create session"
@@ -51,7 +51,7 @@ export function PairingMethod({ sessionId, onMethodSelect, onBack, currentStep }
   const handleMethodSelect = (method: 'qr' | 'code') => {
     if (isCreatingSession) return
 
-    createSessionMutation.mutate({ method })
+    createSessionMutation.mutate(method)
   }
 
   return (
