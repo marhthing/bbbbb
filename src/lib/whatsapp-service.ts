@@ -136,6 +136,29 @@ export class WhatsAppService {
               connectedAt: new Date(),
             })
 
+            // Emit SSE event for connection
+            eventStore.emit(sessionId, {
+              type: 'session_connected',
+              sessionId,
+              user: {
+                jid: sock.user?.id,
+                name: sock.user?.name,
+              },
+              timestamp: new Date().toISOString(),
+            })
+
+            // Send welcome message to WhatsApp user
+            try {
+              const userJid = sock.user?.id
+              if (userJid) {
+                const welcomeMessage = `🎉 Welcome! Your WhatsApp session is now connected.\n\nSession ID: ${sessionId}\n\nThis bot is ready to receive and send messages.`
+                await sock.sendMessage(userJid, { text: welcomeMessage })
+                console.log('✅ Welcome message sent to user:', userJid)
+              }
+            } catch (messageError) {
+              console.error('Failed to send welcome message:', messageError)
+            }
+
             if (callback) {
               callback({
                 type: 'session_connected',
