@@ -49,14 +49,33 @@ export default function AdminDashboard() {
   // Get dashboard stats
   const { data: stats } = useQuery<Stats>({
     queryKey: ['/api/admin/stats'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/stats')
+      if (!response.ok) throw new Error('Failed to fetch stats')
+      return response.json()
+    },
     enabled: isAuthenticated,
   })
 
-  // Get all sessions
-  const { data: sessions } = useQuery<Session[]>({
+  // Get all sessions with pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const sessionsPerPage = 15
+  
+  const { data: allSessions } = useQuery<Session[]>({
     queryKey: ['/api/admin/sessions'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/sessions')
+      if (!response.ok) throw new Error('Failed to fetch sessions')
+      return response.json()
+    },
     enabled: isAuthenticated,
   })
+
+  // Calculate pagination
+  const totalPages = Math.ceil((allSessions?.length || 0) / sessionsPerPage)
+  const startIndex = (currentPage - 1) * sessionsPerPage
+  const endIndex = startIndex + sessionsPerPage
+  const sessions = allSessions?.slice(startIndex, endIndex) || []
 
   // Delete session mutation
   const deleteMutation = useMutation({
@@ -107,8 +126,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -158,47 +177,52 @@ export default function AdminDashboard() {
 
         {/* Sessions Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>WhatsApp Sessions</CardTitle>
+            {allSessions && allSessions.length > 0 && (
+              <div className="text-sm text-gray-500">
+                Showing {startIndex + 1}-{Math.min(endIndex, allSessions.length)} of {allSessions.length} sessions
+              </div>
+            )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
+              <table className="w-full text-sm min-w-[800px]">
+                <thead className="bg-gray-50">
                   <tr className="border-b">
-                    <th className="text-left p-2">Session ID</th>
-                    <th className="text-left p-2">Phone Number</th>
-                    <th className="text-left p-2">Status</th>
-                    <th className="text-left p-2">Method</th>
-                    <th className="text-left p-2">Created</th>
-                    <th className="text-left p-2">Connected</th>
-                    <th className="text-left p-2">Action</th>
+                    <th className="text-left p-3 font-medium">Session ID</th>
+                    <th className="text-left p-3 font-medium">Phone Number</th>
+                    <th className="text-left p-3 font-medium">Status</th>
+                    <th className="text-left p-3 font-medium">Method</th>
+                    <th className="text-left p-3 font-medium">Created</th>
+                    <th className="text-left p-3 font-medium">Connected</th>
+                    <th className="text-left p-3 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessions?.map((session) => (
                     <tr key={session.id} className="border-b hover:bg-gray-50">
-                      <td className="p-2 font-mono text-xs" data-testid={`session-id-${session.id}`}>
+                      <td className="p-3 font-mono text-xs" data-testid={`session-id-${session.id}`}>
                         {session.id.substring(0, 8)}...
                       </td>
-                      <td className="p-2" data-testid={`session-phone-${session.id}`}>
+                      <td className="p-3" data-testid={`session-phone-${session.id}`}>
                         {session.phoneNumber || 'N/A'}
                       </td>
-                      <td className="p-2">
+                      <td className="p-3">
                         <span className={`font-medium ${getStatusColor(session.status)}`} data-testid={`session-status-${session.id}`}>
                           {session.status}
                         </span>
                       </td>
-                      <td className="p-2" data-testid={`session-method-${session.id}`}>
+                      <td className="p-3" data-testid={`session-method-${session.id}`}>
                         {session.pairingMethod || 'N/A'}
                       </td>
-                      <td className="p-2 text-xs text-gray-600">
+                      <td className="p-3 text-xs text-gray-600">
                         {new Date(session.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="p-2 text-xs text-gray-600">
+                      <td className="p-3 text-xs text-gray-600">
                         {session.connectedAt ? new Date(session.connectedAt).toLocaleDateString() : 'N/A'}
                       </td>
-                      <td className="p-2">
+                      <td className="p-3">
                         <Button
                           size="sm"
                           variant="destructive"
@@ -214,9 +238,40 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
               {!sessions?.length && (
-                <div className="text-center py-8 text-gray-500">No sessions found</div>
+                <div className="text-center py-8 text-gray-500">
+                  {allSessions?.length === 0 ? 'No sessions found' : 'No sessions on this page'}
+                </div>
               )}
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
+                <div className="text-sm text-gray-500">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    data-testid="button-prev-page"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    data-testid="button-next-page"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
